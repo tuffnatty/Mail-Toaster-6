@@ -17,12 +17,10 @@ install_nginx()
 	fi
 
 	if [ ! -d "$STAGE_MNT/var/db/ports/www_nginx" ]; then
-		tell_status "creating /var/db/ports/www_nginx"
-		mkdir -p  "$STAGE_MNT/var/db/ports/www_nginx" || exit
+		echo_do mkdir -p "$STAGE_MNT/var/db/ports/www_nginx" || exit
 	fi
 
-	tell_status "copying www_nginx/options"
-	cp "$ZFS_JAIL_MNT/$1/var/db/ports/www_nginx/options" \
+	echo_do cp "$ZFS_JAIL_MNT/$1/var/db/ports/www_nginx/options" \
 		"$STAGE_MNT/var/db/ports/www_nginx/options" || exit
 
 	tell_status "installing nginx port with localized options"
@@ -128,7 +126,7 @@ start_nginx()
 {
 	tell_status "starting nginx"
 	stage_sysrc nginx_enable=YES
-	stage_exec service nginx start || stage_exec service nginx restart
+	echo_stage_exec service nginx start || echo_stage_exec service nginx restart
 }
 
 test_nginx() {

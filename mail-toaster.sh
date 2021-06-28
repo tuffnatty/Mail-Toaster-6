@@ -244,39 +244,31 @@ zfs_create_fs()
 
 	if echo "$1" | grep "$ZFS_DATA_VOL"; then
 		if ! zfs_filesystem_exists "$ZFS_DATA_VOL"; then
-			tell_status "zfs create -o mountpoint=$ZFS_DATA_MNT $ZFS_DATA_VOL"
-			zfs create -o mountpoint="$ZFS_DATA_MNT" "$ZFS_DATA_VOL"  || exit
+			echo_do zfs create -o mountpoint="$ZFS_DATA_MNT" "$ZFS_DATA_VOL"  || exit
 		fi
 	fi
 
 	if echo "$1" | grep "$ZFS_JAIL_VOL"; then
 		if ! zfs_filesystem_exists "$ZFS_JAIL_VOL"; then
-			tell_status "zfs create -o mountpoint=$ZFS_JAIL_MNT $ZFS_JAIL_VOL"
-			zfs create -o mountpoint="$ZFS_JAIL_MNT" "$ZFS_JAIL_VOL"  || exit
+			echo_do zfs create -o mountpoint="$ZFS_JAIL_MNT" "$ZFS_JAIL_VOL"  || exit
 		fi
 	fi
 
 	if [ -z "$2" ]; then
-		tell_status "zfs create $1"
-		zfs create "$1" || exit
-		echo "done"
+		echo_do zfs create "$1" || exit
 		return
 	fi
 
-	tell_status "zfs create -o mountpoint=$2 $1"
-	zfs create -o mountpoint="$2" "$1"  || exit
-	echo "done"
+	echo_do zfs create -o mountpoint="$2" "$1"  || exit
 }
 
 zfs_destroy_fs()
 {
 	if ! zfs_filesystem_exists "$1"; then return; fi
 	if [ -n "$2" ]; then
-		echo "zfs destroy $2 $1"
-		zfs destroy "$2" "$1" || exit
+		echo_do zfs destroy "$2" "$1" || exit
 	else
-		echo "zfs destroy $1"
-		zfs destroy "$1" || exit
+		echo_do zfs destroy "$1" || exit
 	fi
 }
 
@@ -463,11 +455,9 @@ add_automount()
 stop_jail()
 {
 	local _safe; _safe=$(safe_jailname "$1")
-	echo "service jail stop $_safe"
-	service jail stop "$_safe"
+	echo_do service jail stop "$_safe"
 
-	echo "jail -r $_safe"
-	jail -r "$_safe" 2>/dev/null
+	echo_do jail -r "$_safe" 2>/dev/null
 }
 
 stage_unmount()
@@ -515,8 +505,7 @@ create_staged_fs()
 	cleanup_staged_fs "$1"
 
 	tell_status "stage jail filesystem setup"
-	echo "zfs clone $BASE_SNAP $ZFS_JAIL_VOL/stage"
-	zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit
+	echo_do zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit
 
 	stage_sysrc hostname="$1"
 	sed -i -e "/^hostname=/ s/_HOSTNAME_/$1/" \
@@ -562,7 +551,7 @@ start_staged_jail()
 	tell_status "stage jail $_name startup"
 
 	# shellcheck disable=2086
-	jail -c \
+	echo_do jail -c \
 		name=stage \
 		host.hostname="$_name" \
 		path="$_path" \
@@ -578,7 +567,7 @@ start_staged_jail()
 	stage_mount_aux_data "$_name"
 
 	tell_status "updating pkg database"
-	pkg -j stage update
+	echo_do pkg -j stage update -q
 }
 
 rename_staged_to_ready()
@@ -591,8 +580,7 @@ rename_staged_to_ready()
 	# get the wait over with before shutting down production jail
 	local _tries=0
 	local _zfs_rename="zfs rename $ZFS_JAIL_VOL/stage $_new_vol"
-	echo "$_zfs_rename"
-	until $_zfs_rename; do
+	until echo_do $_zfs_rename; do
 		if [ "$_tries" -gt 10 ]; then
 			echo "trying to force rename"
 			_zfs_rename="zfs rename -f $ZFS_JAIL_VOL/stage $_new_vol"
@@ -614,8 +602,7 @@ rename_active_to_last()
 
 	local _tries=0
 	local _zfs_rename="zfs rename $ACTIVE $LAST"
-	echo "$_zfs_rename"
-	until $_zfs_rename; do
+	until echo_do $_zfs_rename; do
 		if [ $_tries -gt 5 ]; then
 			echo "trying to force rename ($_tries)"
 			_zfs_rename="zfs rename -f $ACTIVE $LAST"
@@ -628,25 +615,36 @@ rename_active_to_last()
 
 rename_ready_to_active()
 {
-	echo "zfs rename $ZFS_JAIL_VOL/${1}.ready $ZFS_JAIL_VOL/$1"
-	zfs rename "$ZFS_JAIL_VOL/${1}.ready" "$ZFS_JAIL_VOL/$1" || exit
+	echo_do zfs rename "$ZFS_JAIL_VOL/${1}.ready" "$ZFS_JAIL_VOL/$1" || exit
+}
+
+red() { printf "\033[31m"; }
+dark_green() { printf "\033[32m"; }
+green() { printf "\033[92m"; }
+yellow() { printf "\033[33m"; }
+normal() { printf "\033[0m"; }
+
+echo_do()
+{
+	echo "$(dark_green)$@$(normal)"
+	"$@"
+	return $?
 }
 
 tell_status()
 {
-	echo; echo "   ***   $1   ***"; echo
-	sleep 1
+	echo; echo "$(yellow)   ***   $1   *** $(normal)"
+	#sleep 1
 }
 
 proclaim_success()
 {
-	echo; echo "Success! A new '$1' jail is provisioned"; echo
+	echo "$(green)Success! A new '$1' jail is provisioned$(normal)"; echo
 }
 
 stage_clear_caches()
 {
-	echo "clearing pkg cache"
-	rm -rf "$STAGE_MNT/var/cache/pkg/*"
+	echo_do rm -rf "$STAGE_MNT/var/cache/pkg/*"
 }
 
 stage_resolv_conf()
@@ -659,7 +657,7 @@ seed_pkg_audit()
 {
 	if [ "$TOASTER_PKG_AUDIT" = "1" ]; then
 		tell_status "installing FreeBSD package audit database"
-		stage_exec /usr/sbin/pkg audit -F
+		echo_stage_exec /usr/sbin/pkg audit -F
 	fi
 }
 
@@ -671,8 +669,8 @@ enable_jail()
 	fi
 
 	tell_status "enabling jail $1 at startup"
-	sysrc jail_list+=" $1"
-	sysrc -f /etc/periodic.conf security_status_pkgaudit_jails+=" $1"
+	echo_do sysrc jail_list+=" $1"
+	echo_do sysrc -f /etc/periodic.conf security_status_pkgaudit_jails+=" $1"
 }
 
 promote_staged_jail()
@@ -704,15 +702,13 @@ promote_staged_jail()
 
 stage_pkg_install()
 {
-	echo "pkg -j $SAFE_NAME install -y $*"
-	pkg -j "$SAFE_NAME" install -y "$@"
+	echo_do pkg -j "$SAFE_NAME" install -qy "$@"
 }
 
 stage_port_install()
 {
 	# $1 is the port directory (ex: mail/dovecot)
-	echo "jexec $SAFE_NAME make -C /usr/ports/$1 build deinstall install clean"
-	jexec "$SAFE_NAME" make -C "/usr/ports/$1" build deinstall install clean || return 1
+	echo_do jexec "$SAFE_NAME" make -C "/usr/ports/$1" build deinstall install clean >/dev/null || return 1
 
 	tell_status "port $1 installed"
 }
@@ -720,8 +716,7 @@ stage_port_install()
 stage_sysrc()
 {
 	# don't use -j as this is oft called when jail is not running
-	echo "sysrc -R $STAGE_MNT $*"
-	sysrc -R "$STAGE_MNT" "$@"
+	echo_do sysrc -R "$STAGE_MNT" "$@"
 }
 
 stage_make_conf()
@@ -737,8 +732,12 @@ stage_make_conf()
 
 stage_exec()
 {
-	echo "jexec $SAFE_NAME $*"
 	jexec "$SAFE_NAME" "$@"
+}
+
+echo_stage_exec()
+{
+	echo_do jexec "$SAFE_NAME" "$@"
 }
 
 stage_listening()
@@ -773,19 +772,17 @@ stage_listening()
 stage_test_running()
 {
 	echo "checking for process $1 in staged jail"
-	pgrep -j stage "$1" || exit
+	echo_do pgrep -j stage "$1" || exit
 }
 
 stage_mount_ports()
 {
-	echo "mount $STAGE_MNT/usr/ports"
-	mount_nullfs /usr/ports "$STAGE_MNT/usr/ports" || exit
+	echo_do mount_nullfs /usr/ports "$STAGE_MNT/usr/ports" || exit
 }
 
 stage_mount_pkg_cache()
 {
-	echo "mount $STAGE_MNT/var/cache/pkg"
-	mount_nullfs /var/cache/pkg "$STAGE_MNT/var/cache/pkg" || exit
+	echo_do mount_nullfs /var/cache/pkg "$STAGE_MNT/var/cache/pkg" || exit
 }
 
 unmount_ports()
@@ -798,8 +795,7 @@ unmount_ports()
 		return
 	fi
 
-	echo "unmount $1/usr/ports"
-	umount "$1/usr/ports" || exit
+	echo_do umount "$1/usr/ports" || exit
 }
 
 unmount_pkg_cache()
@@ -808,8 +804,7 @@ unmount_pkg_cache()
 		return
 	fi
 
-	echo "unmount $STAGE_MNT/var/cache/pkg"
-	umount "$STAGE_MNT/var/cache/pkg" || exit
+	echo_do umount "$STAGE_MNT/var/cache/pkg" || exit
 }
 
 freebsd_release_url_base()
@@ -822,13 +817,8 @@ stage_fbsd_package()
 	local _dest="$2"
 	if [ -z "$_dest" ]; then _dest="$STAGE_MNT"; fi
 
-	tell_status "downloading $(freebsd_release_url_base)/$1.txz"
-	fetch -m "$(freebsd_release_url_base)/$1.txz" || exit
-	echo "done"
-
-	tell_status "extracting FreeBSD package $1.tgz to $_dest"
-	tar -C "$_dest" -xpJf "$1.txz" || exit
-	echo "done"
+	echo_do fetch -m "$(freebsd_release_url_base)/$1.txz" || exit
+	echo_do tar -C "$_dest" -xpJf "$1.txz" || exit
 }
 
 mount_data()
@@ -844,8 +834,7 @@ mount_data()
 	local _data_mp;  _data_mp=$(data_mountpoint "$1" "$2")
 
 	if [ ! -d "$_data_mp" ]; then
-		echo "mkdir -p $_data_mp"
-		mkdir -p "$_data_mp" || exit
+		echo_do mkdir -p "$_data_mp" || exit
 	fi
 
 	if mount -t nullfs | grep -q "$_data_mp"; then
@@ -853,8 +842,7 @@ mount_data()
 		return
 	fi
 
-	echo "mount_nullfs $_data_mnt $_data_mp"
-	mount_nullfs "$_data_mnt" "$_data_mp" || exit
+	echo_do mount_nullfs "$_data_mnt" "$_data_mp" || exit
 }
 
 unmount_data()
@@ -866,8 +854,7 @@ unmount_data()
 	local _data_mp=; _data_mp=$(data_mountpoint "$1" "$2")
 
 	if mount -t nullfs | grep "$_data_mp"; then
-		echo "unmount data fs $_data_mp"
-		umount -t nullfs "$_data_mp"
+		echo_do umount -t nullfs "$_data_mp"
 	fi
 }
 
@@ -894,8 +881,7 @@ stage_unmount_dev()
 	if ! mount -t devfs | grep -q "$STAGE_MNT/dev"; then
 		return
 	fi
-	echo "umount $STAGE_MNT/dev"
-	umount "$STAGE_MNT/dev" || exit
+	echo_do umount "$STAGE_MNT/dev" || exit
 }
 
 get_public_facing_nic()
@@ -965,8 +951,7 @@ unprovision_last()
 {
 	for _j in $JAIL_ORDERED_LIST; do
 		if zfs_filesystem_exists "$ZFS_JAIL_VOL/$_j.last"; then
-			tell_status "destroying $ZFS_JAIL_VOL/$_j.last"
-			zfs destroy "$ZFS_JAIL_VOL/$_j.last"
+			echo_do zfs destroy "$ZFS_JAIL_VOL/$_j.last"
 		fi
 	done
 }
@@ -974,28 +959,24 @@ unprovision_last()
 unprovision_filesystem()
 {
 	if zfs_filesystem_exists "$ZFS_JAIL_VOL/$1.ready"; then
-		tell_status "destroying $ZFS_JAIL_VOL/$1.ready"
-		zfs destroy "$ZFS_JAIL_VOL/$1.ready"
+		echo_do zfs destroy "$ZFS_JAIL_VOL/$1.ready"
 	fi
 
 	if zfs_filesystem_exists "$ZFS_JAIL_VOL/$1.last"; then
-		tell_status "destroying $ZFS_JAIL_VOL/$1.last"
-		zfs destroy "$ZFS_JAIL_VOL/$1.last"
+		echo_do zfs destroy "$ZFS_JAIL_VOL/$1.last"
 	fi
 
 	if [ -e "$ZFS_JAIL_VOL/$1/dev/null" ]; then
-		umount -t devfs "$ZFS_JAIL_VOL/$1/dev"
+		echo_do umount -t devfs "$ZFS_JAIL_VOL/$1/dev"
 	fi
 
 	if zfs_filesystem_exists "$ZFS_DATA_VOL/$1"; then
-		tell_status "destroying $ZFS_DATA_MNT/$1"
 		unmount_data "$1"
-		zfs destroy "$ZFS_DATA_VOL/$1"
+		echo_do zfs destroy "$ZFS_DATA_VOL/$1"
 	fi
 
 	if zfs_filesystem_exists "$ZFS_JAIL_VOL/$1"; then
-		tell_status "destroying $ZFS_JAIL_VOL/$1"
-		zfs destroy "$ZFS_JAIL_VOL/$1"
+		echo_do zfs destroy "$ZFS_JAIL_VOL/$1"
 	fi
 }
 
@@ -1006,18 +987,15 @@ unprovision_filesystems()
 	done
 
 	if zfs_filesystem_exists "$ZFS_JAIL_VOL"; then
-		tell_status "destroying $ZFS_JAIL_VOL"
-		zfs destroy "$ZFS_JAIL_VOL"
+		echo_do zfs destroy "$ZFS_JAIL_VOL"
 	fi
 
 	if zfs_filesystem_exists "$ZFS_DATA_VOL"; then
-		tell_status "destroying $ZFS_DATA_VOL"
-		zfs destroy "$ZFS_DATA_VOL"
+		echo_do zfs destroy "$ZFS_DATA_VOL"
 	fi
 
 	if zfs_filesystem_exists "$BASE_VOL"; then
-		tell_status "destroying $BASE_VOL"
-		zfs destroy -r "$BASE_VOL"
+		echo_do zfs destroy -r "$BASE_VOL"
 	fi
 }
 
@@ -1025,8 +1003,7 @@ unprovision_files()
 {
 	for _f in /etc/jail.conf /etc/pf.conf /usr/local/sbin/jailmanage; do
 		if [ -f "$_f" ]; then
-			tell_status "rm $_f"
-			rm "$_f"
+			echo_do rm "$_f"
 		fi
 	done
 
@@ -1038,8 +1015,8 @@ unprovision_files()
 unprovision_rc()
 {
 	tell_status "disabling jail $1 startup"
-	sysrc jail_list-=" $1"
-	sysrc -f /etc/periodic.conf security_status_pkgaudit_jails-=" $1"
+	echo_do sysrc jail_list-=" $1"
+	echo_do sysrc -f /etc/periodic.conf security_status_pkgaudit_jails-=" $1"
 }
 
 unprovision()
@@ -1061,8 +1038,7 @@ unprovision()
 
 	if [ -f /etc/jail.conf ]; then
 		for _j in $_reversed; do
-			echo "$_j"
-			service jail stop "$_j"
+			echo_do service jail stop "$_j"
 			sleep 1
 		done
 	fi
