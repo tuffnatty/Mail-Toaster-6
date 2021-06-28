@@ -81,7 +81,7 @@ start_mysql()
 		unmount_data mysql
 	fi
 
-	stage_exec service mysql-server start || exit
+	echo_stage_exec service mysql-server start || exit
 }
 
 test_mysql()
