@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 . mail-toaster.sh || exit
 
@@ -16,8 +17,9 @@ allow_sysvipc_stage(){
 
 install_dovecot()
 {
+	set -e
 	tell_status "installing dovecot package"
-	stage_pkg_install dovecot dovecot-pigeonhole curl perl5 gmake mysql57-client || exit
+	stage_pkg_install dovecot dovecot-pigeonhole curl perl5 gmake mysql57-client
 
 	tell_status "configure dovecot port options"
 	stage_make_conf dovecot2_SET 'mail_dovecot2_SET=MYSQL LIBWRAP EXAMPLES'
@@ -556,6 +558,7 @@ start_dovecot()
 
 test_imap()
 {
+	set -ex
 	pkg install -y empty
 
 	POST_USER="postmaster@${TOASTER_MAIL_DOMAIN}"

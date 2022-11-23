@@ -38,6 +38,7 @@ EO_FPM_NSL
 
 configure_php_ini()
 {
+	set -e
 	local _php_ini="$STAGE_MNT/usr/local/etc/php.ini"
 
 	if [ -n "$1" ]; then

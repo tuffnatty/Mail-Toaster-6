@@ -487,7 +487,7 @@ stop_jail()
 	local _safe; _safe=$(safe_jailname "$1")
 	echo_do service jail stop "$_safe"
 
-	echo_do jail -r "$_safe" 2>/dev/null
+	echo_do jail -r "$_safe" 2>/dev/null || true
 }
 
 stage_unmount()
@@ -783,8 +783,8 @@ stage_listening()
 {
 	echo "checking for port $1 listener in staged jail"
 	if [ -z "$2" ]; then
-		sockstat -l -4 -6 -p "$1" -j "$(jls -j stage jid)" | grep -v PROTO || exit
-		return
+		sockstat -l -4 -6 -p "$1" -j "$(jls -j stage jid)" | grep -v PROTO || return 1
+		return 0
 	fi
 
 	local _tries=0
@@ -797,7 +797,7 @@ stage_listening()
 
 		if [ "$_tries" -gt "$2" ]; then
 			echo "port $1 is NOT listening"
-			exit
+			return 1
 		fi
 		echo "	checking port $1"
 		_listening=$(sockstat -l -4 -6 -p "$1" -j "$(jls -j stage jid)" | grep -v PROTO)
@@ -806,6 +806,7 @@ stage_listening()
 
 	echo
 	echo "Success! Port $1 is listening in staging jail"
+	return 0
 }
 
 stage_test_running()
