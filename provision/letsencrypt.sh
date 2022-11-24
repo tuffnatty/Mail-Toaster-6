@@ -452,7 +452,7 @@ mailtoaster_deploy() {
 	_cca="$4"
 	_cfullchain="$5"
 
-	for _target in "$TOASTER_MSA" haproxy dovecot webmail
+	for _target in "$TOASTER_MSA" "$TOASTER_INGRESS_JAIL" dovecot webmail
 	do
 		echo "deploying $_target"
                . "/root/.acme.sh/deploy/$_target"
@@ -545,7 +545,7 @@ install_deploy_scripts()
 	tell_status "installing deployment scripts"
 	export _deploy="/root/.acme.sh/deploy"
 
-	install_deploy_haproxy
+	install_deploy_$TOASTER_INGRESS_JAIL
 	install_deploy_dovecot
 	install_deploy_$TOASTER_MSA
 	install_deploy_mailtoaster
@@ -586,7 +586,9 @@ configure_letsencrypt()
 	acme.sh --set-default-ca --server letsencrypt
 
 	if acme.sh --issue --force $_hostnames -w "$_HTTPDIR"; then
-		update_haproxy_ssld
+		if [ "$TOASTER_INGRESS_JAIL" = "haproxy" ]; then
+			update_haproxy_ssld
+		fi
 		acme.sh --deploy $_hostnames --deploy-hook mailtoaster
 	else
 		tell_status "TLS Certificate Issue failed"
