@@ -36,6 +36,8 @@ mt6_defaults()
 	export TOASTER_BUILD_DEBUG=${TOASTER_BUILD_DEBUG:-"0"}
 	export TOASTER_EDITOR=${TOASTER_EDITOR:-"vim"}
 	export TOASTER_EDITOR_PORT=${TOASTER_EDITOR_PORT:-"vim-tiny"}
+	export TOASTER_INGRESS_JAIL=${TOASTER_INGRESS_JAIL:-"haproxy"}
+	export TOASTER_INGRESS_SSL_TERMINATION="${TOASTER_INGRESS_SSL_TERMINATION:-"0"}"
 	# See https://github.com/msimerson/Mail-Toaster-6/wiki/MySQL
 	export TOASTER_MYSQL=${TOASTER_MYSQL:-"1"}
 	export TOASTER_MARIADB=${TOASTER_MARIADB:-"0"}
@@ -143,6 +145,8 @@ export ZFS_SNAPSHOT_DATA="0"  # set to 1 to snapshot modified /data volumes befo
 export ZFS_SNAPSHOT_PROVISIONED="0"  # set to 1 to snapshot every freshly provisioned jail
 export TOASTER_EDITOR="vim"
 export TOASTER_EDITOR_PORT="vim-tiny"
+export TOASTER_INGRESS_JAIL="haproxy"
+export TOASTER_INGRESS_SSL_TERMINATION="0"
 export TOASTER_MSA="haraka"
 export TOASTER_MYSQL="1"
 export TOASTER_MYSQL_ARGS="--syslog"

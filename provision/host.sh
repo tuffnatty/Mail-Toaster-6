@@ -399,6 +399,9 @@ table <ext_ip6> { \$ext_ip6 } persist
 table <bruteforce> persist
 table <sshguard> persist
 
+ssh_ports    = "{ 22 }"
+
+
 ## NAT / Network Address Translation
 
 binat-anchor "binat/*"
@@ -424,7 +427,7 @@ anchor "filter/*"
 
 block in quick from <bruteforce>
 
-block in quick proto tcp from <sshguard> to any port ssh
+block in quick proto tcp from <sshguard> to any port \$ssh_ports
 
 # DHCP
 pass in inet  proto udp from port 67 to port 68

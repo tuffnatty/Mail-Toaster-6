@@ -76,7 +76,7 @@ url.rewrite-repeat += (
 )
 
 extforward.forwarder = (
-		"$(get_jail_ip haproxy)" => "trust",
+		"$(get_jail_ip "$TOASTER_INGRESS_JAIL")" => "trust",
 	)
 EO_LIGHTTPD_MT6
 

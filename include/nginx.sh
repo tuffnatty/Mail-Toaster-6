@@ -127,7 +127,9 @@ configure_nginx()
 	store_config "$_etcdir/nginx.conf" <<EO_NGINX_CONF
 # load_module /usr/local/libexec/nginx/ngx_http_acme_module.so;
 load_module /usr/local/libexec/nginx/ngx_mail_module.so;
+$([ "$TOASTER_INGRESS_JAIL" != haproxy ] || echo '
 load_module /usr/local/libexec/nginx/ngx_stream_module.so;
+')
 
 worker_processes  1;
 
@@ -153,10 +155,8 @@ http {
 
 	keepalive_timeout  65;
 
-	set_real_ip_from $(get_jail_ip haproxy);
-	set_real_ip_from $(get_jail_ip webmail);
-	set_real_ip_from $(get_jail_ip6 haproxy);
-	set_real_ip_from $(get_jail_ip6 webmail);
+	set_real_ip_from $(get_jail_ip "$TOASTER_INGRESS_JAIL");
+	set_real_ip_from $(get_jail_ip6 "$TOASTER_INGRESS_JAIL");
 	real_ip_header   X-Forwarded-For;
 	real_ip_recursive on;
 	client_max_body_size 25m;

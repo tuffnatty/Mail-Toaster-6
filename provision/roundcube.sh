@@ -63,9 +63,12 @@ roundcube_init_db()
 	pkg install -y curl
 	start_roundcube
 
+	local _curl_flags=""
+	[ "$TOASTER_INGRESS_JAIL" != "haproxy" ] || _curl_flags="--haproxy-protocol"
+
 	# since 1.7 the installer entry point is public_html/installer.php; the
 	# installer/ dir it loads sits outside the document root
-	if ! curl -i -sS --fail --haproxy-protocol -F initdb='Initialize database' -XPOST \
+	if ! curl -i -sS --fail $_curl_flags -F initdb='Initialize database' -XPOST \
 		"http://$(get_jail_ip stage)/installer.php?_step=3"; then
 		fatal_err "roundcube installer did not respond at /installer.php"
 	fi
@@ -297,7 +300,7 @@ $config['log_driver'] = 'syslog';
 $config['session_lifetime'] = 30;
 $config['enable_installer'] = true;
 $config['mime_types'] = '/usr/local/etc/nginx/mime.types';
-$config['use_https'] = true;
+//$config['use_https'] = true;
 $config['smtp_conn_options'] = array(
  'ssl'            => array(
    'verify_peer'  => false,
@@ -308,6 +311,12 @@ $config['smtp_conn_options'] = array(
 );
 $config['request_path'] = '/roundcube';
 EO_RC_ADD
+
+	local _use_https="true"
+	[ "${TOASTER_INGRESS_SSL_TERMINATION}" = 0 ] || _use_https="false"
+	tee -a "$_stage_cfg" <<EO_RC_ADD2
+\$config['use_https'] = $_use_https;
+EO_RC_ADD2
 
 	if [ "$ROUNDCUBE_SQL" = "1" ]; then
 		install_roundcube_mysql
