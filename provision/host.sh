@@ -534,6 +534,9 @@ table <bruteforce> persist
 table <sshguard> persist
 table <ssh_exempt> { \$jail_ip4, \$jail_ip6, 127.0.0.0/8, ::1 } persist
 
+ssh_ports    = "{ 22 }"
+
+
 ## NAT / Network Address Translation
 
 binat-anchor "binat/*"
@@ -559,7 +562,7 @@ anchor "filter/*"
 
 block in quick from <bruteforce>
 
-block in quick proto tcp from <sshguard> to any port ssh
+block in quick proto tcp from <sshguard> to any port \$ssh_ports
 
 # DHCP
 pass in inet  proto udp from port 67 to port 68
