@@ -336,7 +336,7 @@ $config['log_driver'] = 'syslog';
 $config['session_lifetime'] = 30;
 $config['enable_installer'] = true;
 $config['mime_types'] = '/usr/local/etc/nginx/mime.types';
-$config['use_https'] = true;
+//$config['use_https'] = true;
 $config['smtp_conn_options'] = array(
  'ssl'            => array(
    'verify_peer'  => false,
@@ -348,10 +348,13 @@ $config['smtp_conn_options'] = array(
 //$config['request_path'] = '/roundcube';
 EO_RC_ADD
 
+	local _use_https="true"
+	[ "${TOASTER_INGRESS_SSL_TERMINATION}" = 0 ] || _use_https="false"
 	[ -z "$ROUNDCUBE_EXTENSIONS$ROUNDCUBE_CORE_PLUGINS" ] || \
 		_rcc_plugins="$(printf "'%s', " $ROUNDCUBE_EXTENSIONS $ROUNDCUBE_CORE_PLUGINS | sed 's/, $//')"
 
 	tee -a "$_stage_cfg" <<EO_RC_ADD2
+\$config['use_https'] = $_use_https;
 \$config['plugins'] = [$_rcc_plugins];
 EO_RC_ADD2
 
