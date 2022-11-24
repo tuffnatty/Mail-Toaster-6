@@ -39,7 +39,7 @@ server {
     listen       80;
     server_name  joomla;
 
-	set_real_ip_from $(get_jail_ip haproxy);
+	set_real_ip_from $(get_jail_ip "$TOASTER_INGRESS_JAIL");
 	real_ip_header X-Forwarded-For;
 	client_max_body_size 25m;
 

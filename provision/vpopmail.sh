@@ -49,8 +49,8 @@ server.modules += ( "mod_cgi" )
 
 server.modules += ( "mod_extforward" )
 extforward.forwarder = (
-     "$(get_jail_ip haproxy)"  => "trust",
-     "$(get_jail_ip6 haproxy)"  => "trust",
+     "$(get_jail_ip "$TOASTER_INGRESS_JAIL")"  => "trust",
+     "$(get_jail_ip6 "$TOASTER_INGRESS_JAIL")"  => "trust",
 )
 
 auth.backend                   = "htdigest"

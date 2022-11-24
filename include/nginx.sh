@@ -64,10 +64,23 @@ configure_nginx()
 		return
 	fi
 
+	local _add_modules="load_module /usr/local/libexec/nginx/ngx_mail_module.so;"
+	local _add_http_directives=""
+	local _add_listen_options=""
+	case "$TOASTER_INGRESS_JAIL" in
+		haproxy)
+			_add_modules="$_add_modules
+load_module /usr/local/libexec/nginx/ngx_stream_module.so;"
+			_add_http_directives="
+	real_ip_header   proxy_protocol;
+	real_ip_recursive on;"
+			_add_listen_options=" proxy_protocol"
+			;;
+	esac
+
 	tell_status "saving $_installed"
 	tee "$_installed" <<EO_NGINX_CONF
-load_module /usr/local/libexec/nginx/ngx_mail_module.so;
-load_module /usr/local/libexec/nginx/ngx_stream_module.so;
+$_add_modules
 
 worker_processes  1;
 
@@ -84,10 +97,9 @@ http {
 
 	keepalive_timeout  65;
 
-	set_real_ip_from haproxy;
-	set_real_ip_from haproxy6;
-	real_ip_header   proxy_protocol;
-	real_ip_recursive on;
+	set_real_ip_from $(get_jail_ip "$TOASTER_INGRESS_JAIL");
+	set_real_ip_from $(get_jail_ip6 "$TOASTER_INGRESS_JAIL");
+	${_add_http_directives}
 	client_max_body_size 25m;
 
 	upstream php {
@@ -96,8 +108,8 @@ http {
 	}
 
 	server {
-		listen       80 proxy_protocol;
-		listen  [::]:80 proxy_protocol;
+		listen       80${_add_listen_options};
+		listen  [::]:80${_add_listen_options};
 
 		# serve all Let's Encrypt requests from /data
 		location /.well-known/acme-challenge {
@@ -124,11 +136,6 @@ http {
 }
 
 EO_NGINX_CONF
-
-	sed -i.bak \
-		-e "s/haproxy;/$(get_jail_ip haproxy);/" \
-		-e "s/haproxy6;/$(get_jail_ip6 haproxy);/" \
-		"$_installed" || exit
 }
 
 start_nginx()

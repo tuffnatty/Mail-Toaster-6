@@ -69,7 +69,9 @@ roundcube_init_db()
 	tell_status "initializing roundcube db"
 	pkg install -y curl || exit
 	start_roundcube
-	curl -i --haproxy-protocol -F initdb='Initialize database' -XPOST \
+	local _curl_flags=""
+	[ "$TOASTER_INGRESS_JAIL" != "haproxy" ] || _curl_flags="--haproxy-protocol"
+	curl -i $_curl_flags -F initdb='Initialize database' -XPOST \
 		"http://$(get_jail_ip stage)/installer/index.php?_step=3" || exit
 }
 
@@ -196,6 +198,9 @@ configure_roundcube()
 		-e '/^\$config..plugins/,/^];$/d' \
 		"$_rcc_conf" || exit
 
+	local _use_https="true"
+	[ "${TOASTER_INGRESS_SSL_TERMINATION}" = 0 ] || _use_https="false"
+
 	local _rcc_plugins=""
 	[ -z "$ROUNDCUBE_EXTENSIONS$ROUNDCUBE_CORE_PLUGINS" ] || \
 		_rcc_plugins="$(printf "'%s', " $ROUNDCUBE_EXTENSIONS $ROUNDCUBE_CORE_PLUGINS | sed 's/, $//')"
@@ -206,7 +211,7 @@ configure_roundcube()
 \$config['session_lifetime'] = 30;
 \$config['enable_installer'] = true;
 \$config['mime_types'] = '/usr/local/etc/nginx/mime.types';
-\$config['use_https'] = true;
+\$config['use_https'] = $_use_https;
 \$config['smtp_conn_options'] = array(
  'ssl'            => array(
    'verify_peer'  => false,

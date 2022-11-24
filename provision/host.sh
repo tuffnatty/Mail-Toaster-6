@@ -339,11 +339,11 @@ mua_ports    = "{ 993 995 }"
 
 dovecot_lo4  = "{ $(get_jail_ip  dovecot) }"
 haraka_lo4   = "{ $(get_jail_ip  haraka)  }"
-haproxy_lo4  = "{ $(get_jail_ip  haproxy) }"
+http_ingress_lo4 = "{ $(get_jail_ip  "$TOASTER_INGRESS_JAIL") }"
 
 dovecot_lo6  = "{ $(get_jail_ip6 dovecot) }"
 haraka_lo6   = "{ $(get_jail_ip6 haraka)  }"
-haproxy_lo6  = "{ $(get_jail_ip6 haproxy) }"
+http_ingress_lo6  = "{ $(get_jail_ip6 "$TOASTER_INGRESS_JAIL") }"
 
 ## Translation rules
 
@@ -363,9 +363,9 @@ rdr inet6 proto tcp from <allow_insecure> to <ext_ip6> port \$mua_insecure -> \$
 rdr inet  proto tcp from any to <ext_ip4> port \$mta_ports -> \$haraka_lo4
 rdr inet6 proto tcp from any to <ext_ip6> port \$mta_ports -> \$haraka_lo6
 
-# HTTP traffic to HAproxy
-rdr inet  proto tcp from any to <ext_ip4> port \$http_ports -> \$haproxy_lo4
-rdr inet6 proto tcp from any to <ext_ip6> port \$http_ports -> \$haproxy_lo6
+# HTTP traffic to $TOASTER_INGRESS_JAIL
+rdr inet  proto tcp from any to <ext_ip4> port \$http_ports -> \$http_ingress_lo4
+rdr inet6 proto tcp from any to <ext_ip6> port \$http_ports -> \$http_ingress_lo6
 
 ## Filtering rules
 
