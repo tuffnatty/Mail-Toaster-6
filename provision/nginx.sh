@@ -31,7 +31,7 @@ configure_nginx()
 $_listen
 +        server_name  nginx;
 +
-+        set_real_ip_from $(get_jail_ip4 haproxy);
++        set_real_ip_from $(get_jail_ip4 "$TOASTER_INGRESS_JAIL");
 +        real_ip_header X-Forwarded-For;
  
          #charset koi8-r;
