@@ -430,6 +430,7 @@ mailtoaster_deploy() {
 	return 0
 }
 EO_LE_MT
+	chmod u+x "$_deploy/mailtoaster"
 }
 
 install_deploy_scripts()
@@ -474,9 +475,17 @@ configure_letsencrypt()
 			update_haproxy_ssld
 		fi
 		$_acme --deploy -d "$TOASTER_HOSTNAME" --deploy-hook mailtoaster
+		echo "Exit code $?"
 	else
 		tell_status "TLS Certificate Issue failed"
 		exit 1
+	fi
+
+	if crontab -l | grep -q '^[^#].*acme\.sh'; then
+		tell_status "host cronjob already exists"
+	else
+	        tell_status "adding host cronjob for certificate renewal"
+		{ crontab -l; echo "31 0 * * * $_acme --cron > /dev/null"; } | crontab -
 	fi
 }
 
