@@ -6,8 +6,7 @@ set -e
 install_letsencrypt()
 {
 	tell_status "installing ACME.sh & Let's Encrypt"
-	pkg install -y curl socat
-	fetch -o - https://get.acme.sh | sh
+	pkg install -y acme.sh
 }
 
 install_deploy_nginxfront()
@@ -423,7 +422,7 @@ mailtoaster_deploy() {
 	for _target in haraka "$TOASTER_INGRESS_JAIL" dovecot
 	do
 		echo "deploying $_target"
-		. "/root/.acme.sh/deploy/$_target"
+		. ~acme/.acme.sh/deploy/"$_target"
 		${_target}_deploy $* || return 2
 	done
 
@@ -436,7 +435,7 @@ EO_LE_MT
 install_deploy_scripts()
 {
 	tell_status "installing deployment scripts"
-	export _deploy="/root/.acme.sh/deploy"
+	export _deploy=~acme/.acme.sh/deploy
 
 	install_deploy_$TOASTER_INGRESS_JAIL
 	install_deploy_dovecot
@@ -466,7 +465,7 @@ configure_letsencrypt()
 	tell_status "configuring acme.sh"
 
 	local _HTTPDIR="$ZFS_DATA_MNT/webmail"
-	local _acme="/root/.acme.sh/acme.sh"
+	local _acme="/usr/local/sbin/acme.sh --home /var/db/acme/.acme.sh"
 
 	$_acme --set-default-ca --server letsencrypt
 
@@ -491,7 +490,7 @@ configure_letsencrypt()
 
 test_letsencrypt()
 {
-	if [ ! -f "/root/.acme.sh/acme.sh" ]; then
+	if [ ! -f "/usr/local/sbin/acme.sh" ]; then
 		echo "not installed!"
 		exit
 	fi
