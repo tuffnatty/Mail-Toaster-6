@@ -5,7 +5,7 @@ set -e
 . mail-toaster.sh
 
 service_config letsencrypt
-export LETSENCRYPT_HOSTNAMES="${LETSENCRYPT_HOSTNAMES:-"$TOASTER_HOSTNAME"}"
+export LETSENCRYPT_HOSTNAMES="${LETSENCRYPT_HOSTNAMES:-"$TOASTER_HOSTNAME www.$TOASTER_HOSTAME $TOASTER_HOSTNAME_SMTP"}"
 
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
@@ -15,6 +15,81 @@ install_letsencrypt()
 {
 	tell_status "installing ACME.sh & Let's Encrypt"
 	pkg install -y curl socat acme.sh
+}
+
+install_deploy_nginxfront()
+{
+	tee "$_deploy/nginxfront" <<'EO_LE_NGINXFRONT'
+#!/bin/sh
+
+assure_file() {
+
+	if [ ! -s "$1" ]; then
+		_err "File doesn't exist: $1"
+		return 1
+	fi
+
+	_debug "file exists: $1"
+	return 0
+}
+
+has_differences() {
+
+	if [ ! -f "$2" ]; then
+		_debug "non-existent, deploying: $2"
+		return 0
+	fi
+
+	if diff -q "$1" "$2"; then
+		_debug "file contents identical, skip deploy of $2"
+		return 1
+	fi
+
+	_debug "file has changes, deploying"
+	return 0
+}
+
+install_file() {
+	_debug "cp $1 $2"
+	cp "$1" "$2" || return 1
+
+	if [ ! -s "$2" ]; then
+		_err "install to $2 failed"
+		return 1
+	fi
+
+	_debug "installed as $2"
+	return 0
+}
+
+#returns 0 means success, otherwise error.
+
+#domain keyfile certfile cafile fullchain
+nginxfront_deploy() {
+	_cdomain="$1"
+	_ckey="$2"
+	_ccert="$3"
+	_cca="$4"
+	_cfullchain="$5"
+
+	assure_file "$_ckey" || return 2
+	assure_file "$_cfullchain" || return 1;
+
+	_ssl_dir="/data/nginxfront/etc/ssl"
+	if [ ! -d "$_ssl_dir" ]; then
+		_debug "no TLS/SSL dir: $_ssl_dir"
+		return 0
+	fi
+	mkdir -p "$_ssl_dir/$_cdomain/certs" || return 1
+	cp "$_cfullchain" "$_ssl_dir/$_cdomain/certs" || return 1
+	mkdir -p "$_ssl_dir/$_cdomain/private" || return 1
+	cp "$_ckey" "$_ssl_dir/$_cdomain/private" || return 1
+
+	_debug "restarting nginx"
+	jexec nginxfront service nginx restart || return 1
+	return 0
+}
+EO_LE_NGINXFRONT
 }
 
 install_deploy_haproxy()
@@ -448,7 +523,7 @@ mailtoaster_deploy() {
 	_cca="$4"
 	_cfullchain="$5"
 
-	for _target in "$TOASTER_MSA" "$TOASTER_INGRESS_JAIL" dovecot webmail
+	for _target in "$TOASTER_MSA" "$TOASTER_INGRESS_JAIL" dovecot
 	do
 		echo "deploying $_target"
 		. ~acme/.acme.sh/deploy/"$_target"
@@ -458,6 +533,7 @@ mailtoaster_deploy() {
 	return 0
 }
 EO_LE_MT
+	chmod u+x "$_deploy/mailtoaster"
 }
 
 install_deploy_webmail()
@@ -546,7 +622,7 @@ install_deploy_scripts()
 	install_deploy_$TOASTER_MSA
 	install_deploy_mailtoaster
 	install_deploy_mysql
-	install_deploy_webmail
+	#install_deploy_webmail
 }
 
 update_haproxy_ssld()
@@ -576,7 +652,7 @@ configure_letsencrypt()
 	tell_status "configuring acme.sh"
 
 	local _HTTPDIR _hostnames
-	_HTTPDIR="$(get_jail_data webmail)/htdocs"
+	_HTTPDIR="$(get_jail_data nginxfront)/htdocs"
 	_hostnames="$(printf ' -d %s' $LETSENCRYPT_HOSTNAMES)"
 	local _acme="/usr/local/sbin/acme.sh --home /var/db/acme/.acme.sh"
 
@@ -590,6 +666,13 @@ configure_letsencrypt()
 	else
 		tell_status "TLS Certificate Issue failed"
 		exit 1
+	fi
+
+	if crontab -l | grep -q '^[^#].*acme\.sh'; then
+		tell_status "host cronjob already exists"
+	else
+	        tell_status "adding host cronjob for certificate renewal"
+		{ crontab -l || true; echo "31 0 * * * $_acme --cron > /dev/null"; } | crontab -
 	fi
 }
 
