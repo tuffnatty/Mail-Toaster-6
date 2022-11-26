@@ -16,11 +16,12 @@ install_letsencrypt()
 	tell_status "installing ACME.sh & Let's Encrypt"
 	pkg install -y curl socat acme.sh
 
-	local _acme_home="${ACME_HOME:-/root/.acme.sh}"
+	local _acme_home="${ACME_HOME:-~acme/.acme.sh}"
 	local _acme_examples="${ACME_EXAMPLES:-/usr/local/share/examples/acme.sh}"
 
 	if [ ! -d "$_acme_home" ]; then
 		mkdir "$_acme_home"
+		chown acme:acme "$_acme_home"
 	fi
 
 	# the pkg ships the DNS API hooks as examples, acme.sh looks in its home
@@ -465,7 +466,7 @@ mailtoaster_deploy() {
 	for _target in "$TOASTER_MSA" "$TOASTER_INGRESS_JAIL" dovecot webmail
 	do
 		echo "deploying $_target"
-               . "/root/.acme.sh/deploy/$_target"
+		. ~acme/.acme.sh/deploy/"$_target"
 		${_target}_deploy $* || return 2
 	done
 
@@ -553,7 +554,7 @@ EO_LE_WEBMAIL
 install_deploy_scripts()
 {
 	tell_status "installing deployment scripts"
-	export _deploy="/root/.acme.sh/deploy"
+	export _deploy=~acme/.acme.sh/deploy
 
 	install_deploy_$TOASTER_INGRESS_JAIL
 	install_deploy_dovecot
@@ -592,14 +593,15 @@ configure_letsencrypt()
 	local _HTTPDIR _hostnames
 	_HTTPDIR="$(get_jail_data webmail)/htdocs"
 	_hostnames="$(printf ' -d %s' $LETSENCRYPT_HOSTNAMES)"
+	local _acme="/usr/local/sbin/acme.sh --home /var/db/acme/.acme.sh"
 
-	acme.sh --set-default-ca --server letsencrypt
+	$_acme --set-default-ca --server letsencrypt
 
-	if acme.sh --issue --force $_hostnames -w "$_HTTPDIR"; then
+	if $_acme --issue --force $_hostnames -w "$_HTTPDIR"; then
 		if [ "$TOASTER_INGRESS_JAIL" = "haproxy" ]; then
 			update_haproxy_ssld
 		fi
-		acme.sh --deploy $_hostnames --deploy-hook mailtoaster
+		$_acme --deploy $_hostnames --deploy-hook mailtoaster
 	else
 		tell_status "TLS Certificate Issue failed"
 		exit 1
