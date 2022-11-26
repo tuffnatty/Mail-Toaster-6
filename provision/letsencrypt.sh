@@ -12,10 +12,6 @@ install_letsencrypt()
 {
 	tell_status "installing ACME.sh & Let's Encrypt"
 	pkg install -y curl socat acme.sh
-
-	if [ ! -d "/root/.acme.sh" ]; then
-		mkdir "/root/.acme.sh"
-	fi
 }
 
 install_deploy_haproxy()
@@ -372,7 +368,7 @@ mailtoaster_deploy() {
 	for _target in haraka haproxy dovecot webmail
 	do
 		echo "deploying $_target"
-               . "/root/.acme.sh/deploy/$_target"
+		. ~acme/.acme.sh/deploy/"$_target"
 		${_target}_deploy $* || return 2
 	done
 
@@ -460,7 +456,7 @@ EO_LE_WEBMAIL
 install_deploy_scripts()
 {
 	tell_status "installing deployment scripts"
-	export _deploy="/root/.acme.sh/deploy"
+	export _deploy=~acme/.acme.sh/deploy
 
 	install_deploy_haproxy
 	install_deploy_dovecot
@@ -495,13 +491,14 @@ configure_letsencrypt()
 
 	tell_status "configuring acme.sh"
 
-	local _HTTPDIR="$ZFS_DATA_MNT/webmail/htdocs"
+	local _HTTPDIR="$ZFS_DATA_MNT/webmail"
+	local _acme="/usr/local/sbin/acme.sh --home /var/db/acme/.acme.sh"
 
-	acme.sh --set-default-ca --server letsencrypt
+	$_acme --set-default-ca --server letsencrypt
 
-	if acme.sh --issue --force -d "$TOASTER_HOSTNAME" -w "$_HTTPDIR"; then
+	if $_acme --issue --force -d "$TOASTER_HOSTNAME" -w "$_HTTPDIR"; then
 		update_haproxy_ssld
-		acme.sh --deploy -d "$TOASTER_HOSTNAME" --deploy-hook mailtoaster
+		$_acme --deploy -d "$TOASTER_HOSTNAME" --deploy-hook mailtoaster
 	else
 		tell_status "TLS Certificate Issue failed"
 		exit 1
