@@ -10,6 +10,81 @@ install_letsencrypt()
 	fetch -o - https://get.acme.sh | sh
 }
 
+install_deploy_nginxfront()
+{
+	tee "$_deploy/nginxfront" <<'EO_LE_NGINXFRONT'
+#!/bin/sh
+
+assure_file() {
+
+	if [ ! -s "$1" ]; then
+		_err "File doesn't exist: $1"
+		return 1
+	fi
+
+	_debug "file exists: $1"
+	return 0
+}
+
+has_differences() {
+
+	if [ ! -f "$2" ]; then
+		_debug "non-existent, deploying: $2"
+		return 0
+	fi
+
+	if diff -q "$1" "$2"; then
+		_debug "file contents identical, skip deploy of $2"
+		return 1
+	fi
+
+	_debug "file has changes, deploying"
+	return 0
+}
+
+install_file() {
+	_debug "cp $1 $2"
+	cp "$1" "$2" || return 1
+
+	if [ ! -s "$2" ]; then
+		_err "install to $2 failed"
+		return 1
+	fi
+
+	_debug "installed as $2"
+	return 0
+}
+
+#returns 0 means success, otherwise error.
+
+#domain keyfile certfile cafile fullchain
+nginxfront_deploy() {
+	_cdomain="$1"
+	_ckey="$2"
+	_ccert="$3"
+	_cca="$4"
+	_cfullchain="$5"
+
+	assure_file "$_ckey" || return 2
+	assure_file "$_cfullchain" || return 1;
+
+	_ssl_dir="/data/nginxfront/etc/ssl"
+	if [ ! -d "$_ssl_dir" ]; then
+		_debug "no TLS/SSL dir: $_ssl_dir"
+		return 0
+	fi
+	mkdir -p "$_ssl_dir/$_cdomain/certs" || return 1
+	cp "$_cfullchain" "$_ssl_dir/$_cdomain/certs" || return 1
+	mkdir -p "$_ssl_dir/$_cdomain/private" || return 1
+	cp "$_ckey" "$_ssl_dir/$_cdomain/private" || return 1
+
+	_debug "restarting nginx"
+	jexec nginxfront service nginx restart || return 1
+	return 0
+}
+EO_LE_NGINXFRONT
+}
+
 install_deploy_haproxy()
 {
 	tee "$_deploy/haproxy" <<'EO_LE_HAPROXY'
