@@ -1,7 +1,5 @@
 #!/bin/sh
 
-set -e
-
 . mail-toaster.sh
 
 export JAIL_START_EXTRA=""
@@ -12,6 +10,81 @@ install_letsencrypt()
 {
 	tell_status "installing ACME.sh & Let's Encrypt"
 	pkg install -y curl socat acme.sh
+}
+
+install_deploy_nginxfront()
+{
+	tee "$_deploy/nginxfront" <<'EO_LE_NGINXFRONT'
+#!/bin/sh
+
+assure_file() {
+
+	if [ ! -s "$1" ]; then
+		_err "File doesn't exist: $1"
+		return 1
+	fi
+
+	_debug "file exists: $1"
+	return 0
+}
+
+has_differences() {
+
+	if [ ! -f "$2" ]; then
+		_debug "non-existent, deploying: $2"
+		return 0
+	fi
+
+	if diff -q "$1" "$2"; then
+		_debug "file contents identical, skip deploy of $2"
+		return 1
+	fi
+
+	_debug "file has changes, deploying"
+	return 0
+}
+
+install_file() {
+	_debug "cp $1 $2"
+	cp "$1" "$2" || return 1
+
+	if [ ! -s "$2" ]; then
+		_err "install to $2 failed"
+		return 1
+	fi
+
+	_debug "installed as $2"
+	return 0
+}
+
+#returns 0 means success, otherwise error.
+
+#domain keyfile certfile cafile fullchain
+nginxfront_deploy() {
+	_cdomain="$1"
+	_ckey="$2"
+	_ccert="$3"
+	_cca="$4"
+	_cfullchain="$5"
+
+	assure_file "$_ckey" || return 2
+	assure_file "$_cfullchain" || return 1;
+
+	_ssl_dir="/data/nginxfront/etc/ssl"
+	if [ ! -d "$_ssl_dir" ]; then
+		_debug "no TLS/SSL dir: $_ssl_dir"
+		return 0
+	fi
+	mkdir -p "$_ssl_dir/$_cdomain/certs" || return 1
+	cp "$_cfullchain" "$_ssl_dir/$_cdomain/certs" || return 1
+	mkdir -p "$_ssl_dir/$_cdomain/private" || return 1
+	cp "$_ckey" "$_ssl_dir/$_cdomain/private" || return 1
+
+	_debug "restarting nginx"
+	jexec nginxfront service nginx restart || return 1
+	return 0
+}
+EO_LE_NGINXFRONT
 }
 
 install_deploy_haproxy()
@@ -375,6 +448,7 @@ mailtoaster_deploy() {
 	return 0
 }
 EO_LE_MT
+	chmod u+x "$_deploy/mailtoaster"
 }
 
 install_deploy_webmail()
@@ -463,7 +537,7 @@ install_deploy_scripts()
 	install_deploy_haraka
 	install_deploy_mailtoaster
 	install_deploy_mysql
-	install_deploy_webmail
+	#install_deploy_webmail
 }
 
 update_haproxy_ssld()
@@ -491,10 +565,10 @@ configure_letsencrypt()
 
 	tell_status "configuring acme.sh"
 
-	local _HTTPDIR="$ZFS_DATA_MNT/webmail"
+	local _HTTPDIR="$ZFS_DATA_MNT/nginxfront/htdocs"
 	local _acme="/usr/local/sbin/acme.sh --home /var/db/acme/.acme.sh"
 	local _hostnames
-	_hostnames="$(printf ' -d %s' ${LETSENCRYPT_HOSTNAMES:-"$TOASTER_HOSTNAME"})"
+	_hostnames="$(printf ' -d %s' ${LETSENCRYPT_HOSTNAMES:-"$TOASTER_HOSTNAME www.$TOASTER_HOSTNAME $TOASTER_HOSTNAME_SMTP"})"
 
 	$_acme --set-default-ca --server letsencrypt
 
@@ -506,6 +580,13 @@ configure_letsencrypt()
 	else
 		tell_status "TLS Certificate Issue failed"
 		exit 1
+	fi
+
+	if crontab -l | grep -q '^[^#].*acme\.sh'; then
+		tell_status "host cronjob already exists"
+	else
+	        tell_status "adding host cronjob for certificate renewal"
+		{ crontab -l; echo "31 0 * * * $_acme --cron > /dev/null"; } | crontab -
 	fi
 }
 
