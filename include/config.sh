@@ -36,6 +36,7 @@ mt6_defaults()
 	# See https://github.com/msimerson/Mail-Toaster-6/wiki/MySQL
 	export TOASTER_MYSQL=${TOASTER_MYSQL:-"1"}
 	export TOASTER_MARIADB=${TOASTER_MARIADB:-"0"}
+	export TOASTER_MYSQL_ARGS=${TOASTER_MYSQL_ARGS:-"--syslog --innodb-checksum-algorithm=none"}
 	export TOASTER_NGINX_ACME=${TOASTER_NGINX_ACME:-"0"}
 	export TOASTER_NGINX_LOG_DIR=${TOASTER_NGINX_LOG_DIR:-"/var/log/nginx"}
 	export TOASTER_NGINX_LOG_FORMAT=${TOASTER_NGINX_LOG_FORMAT:-"combined"}
@@ -137,6 +138,7 @@ export TOASTER_EDITOR="vim"
 export TOASTER_EDITOR_PORT="vim-tiny"
 export TOASTER_MSA="haraka"
 export TOASTER_MYSQL="1"
+export TOASTER_MYSQL_ARGS="--syslog"
 export TOASTER_MYSQL_PASS=""
 export TOASTER_NGINX_ACME="0"
 export TOASTER_NGINX_LOG_DIR=""  # /data/log/nginx for log persistence, or syslog: for logging to syslog
