@@ -55,6 +55,7 @@ mysql_create_db()
 mysql_db_exists()
 {
 	local _query="SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='$1';"
+	local result
 	result=$(echo "$_query" | jexec mysql $(mysql_bin) -s -N)
 
 	if [ -z "$result" ]; then
