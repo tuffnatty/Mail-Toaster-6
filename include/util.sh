@@ -308,3 +308,5 @@ EO_RESOLV
 	configure_pkg_repos "$_root"
 	pkg_use_bsd_cache "$_root"
 }
+
+sed_replacement_quote() { printf "%s" "$1" | sed -E 's,([&\\/]),\\\1,g'; }
