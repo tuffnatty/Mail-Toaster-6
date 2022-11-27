@@ -744,7 +744,7 @@ provision()
 	done
 
 	case "$1" in
-		host) fetch_and_exec "$1"; return;;
+		host|vmail|backup)   fetch_and_exec "$1"; return;;
 		web)  for _j in haproxy webmail roundcube snappymail; do fetch_and_exec "$_j"; done
 			return;;
 		mt6)  provision_mt6; return;;
