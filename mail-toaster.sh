@@ -18,7 +18,7 @@ mt6_config_hint()
 
 mt6-update()
 {
-	fetch "$TOASTER_SRC_URL/mail-toaster.sh"
+	#fetch "$TOASTER_SRC_URL/mail-toaster.sh"
 	# shellcheck disable=SC1091
 	. mail-toaster.sh
 }
@@ -49,19 +49,19 @@ mt6-fetch()
 		if [ "$CI" = "true" ]; then return; fi
 		if ! check_last_hour; then
 			tell_status "git repo, check status, skip fetch"
-			git remote update && git status
+			#git remote update && git status
 		fi
 		return
 	fi
 
 	if [ ! -d "$_dir" ]; then echo_do mkdir "$_dir"; fi
 
-	fetch -o "$_dir" -m "$TOASTER_SRC_URL/$_dir/$2"
+	#fetch -o "$_dir" -m "$TOASTER_SRC_URL/$_dir/$2"
 }
 
 mt6-include()
 {
-	mt6-fetch include "$1.sh"
+	#mt6-fetch include "$1.sh"
 
 	if [ ! -f "include/$1.sh" ]; then
 		echo "unable to download include/$1.sh"
@@ -142,7 +142,7 @@ mt6_init()
 	if [ -z "$SAFE_NAME" ]; then echo "unset SAFE_NAME"; exit; fi
 }
 
-export TOASTER_SRC_URL=${TOASTER_SRC_URL:="https://raw.githubusercontent.com/msimerson/Mail-Toaster-6/master"}
+export TOASTER_SRC_URL=${TOASTER_SRC_URL:="https://raw.githubusercontent.com/tuffnatty/Mail-Toaster-6/master"}
 
 if [ "${MT6_TEST_ENV:-0}" != "1" ]; then
 	mt6_init
@@ -679,7 +679,7 @@ unmount_data()
 
 fetch_and_exec()
 {
-	mt6-fetch provision "$1.sh"
+	#mt6-fetch provision "$1.sh"
 	sh "provision/$1.sh"
 }
 
@@ -693,13 +693,13 @@ install_sentry()
 	tell_status "installing sentry"
 	stage_pkg_install perl5 p5-Net-IP
 	stage_exec mkdir /var/db/sentry || exit
-	stage_exec fetch -o /var/db/sentry/sentry.pl --no-verify-peer https://raw.githubusercontent.com/msimerson/sentry/master/sentry.pl
+	#stage_exec fetch -o /var/db/sentry/sentry.pl --no-verify-peer https://raw.githubusercontent.com/msimerson/sentry/master/sentry.pl
 	stage_exec perl /var/db/sentry/sentry.pl --update
 
 	if [ -n "$TOASTER_NRPE" ]; then
 		tell_status "installing nagios sentry plugin"
 		stage_pkg_install nagios-plugins || exit
-		stage_exec fetch -o /usr/local/libexec/nagios/check_sentry $TOASTER_SRC_URL/contrib/check_sentry
+		#stage_exec fetch -o /usr/local/libexec/nagios/check_sentry $TOASTER_SRC_URL/contrib/check_sentry
 	fi
 }
 

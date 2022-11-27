@@ -54,8 +54,10 @@ mt6_version_check()
 	local _this
 	_this="$(mt6_version)"
 	if [ -n "$_this" ] && [ "$_this" -lt "$_github" ]; then
-		echo "NOTICE: updating mail-toaster.sh"
-		mt6-update
+		# disable updates
+		return
+		#echo "NOTICE: updating mail-toaster.sh"
+		#mt6-update
 	fi
 }
 
