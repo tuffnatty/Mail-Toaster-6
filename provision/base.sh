@@ -566,7 +566,7 @@ EO_VIMRC
 install_base()
 {
 	tell_status "installing packages desired in every jail"
-	stage_pkg_install pkg vim-tiny ca_root_nss || exit
+	stage_pkg_install pkg ca_root_nss || exit
 
 	stage_exec newaliases
 
