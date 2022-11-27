@@ -340,10 +340,12 @@ mua_ports    = "{ 993 995 }"
 dovecot_lo4  = "{ $(get_jail_ip  dovecot) }"
 haraka_lo4   = "{ $(get_jail_ip  haraka)  }"
 http_ingress_lo4 = "{ $(get_jail_ip  "$TOASTER_INGRESS_JAIL") }"
+postfix_lo4  = "{ $(get_jail_ip  postfix) }"
 
 dovecot_lo6  = "{ $(get_jail_ip6 dovecot) }"
 haraka_lo6   = "{ $(get_jail_ip6 haraka)  }"
 http_ingress_lo6  = "{ $(get_jail_ip6 "$TOASTER_INGRESS_JAIL") }"
+postfix_lo6  = "{ $(get_jail_ip6 postfix) }"
 
 ## Translation rules
 
@@ -359,9 +361,9 @@ rdr inet6 proto tcp from any to <ext_ip6> port \$mua_ports -> \$dovecot_lo6
 rdr inet  proto tcp from <allow_insecure> to <ext_ip4> port \$mua_insecure -> \$dovecot_lo4
 rdr inet6 proto tcp from <allow_insecure> to <ext_ip6> port \$mua_insecure -> \$dovecot_lo6
 
-# SMTP traffic to the Haraka jail
-rdr inet  proto tcp from any to <ext_ip4> port \$mta_ports -> \$haraka_lo4
-rdr inet6 proto tcp from any to <ext_ip6> port \$mta_ports -> \$haraka_lo6
+# SMTP traffic to the Postfix jail
+rdr inet  proto tcp from any to <ext_ip4> port \$mta_ports -> \$postfix_lo4
+rdr inet6 proto tcp from any to <ext_ip6> port \$mta_ports -> \$postfix_lo6
 
 # HTTP traffic to $TOASTER_INGRESS_JAIL
 rdr inet  proto tcp from any to <ext_ip4> port \$http_ports -> \$http_ingress_lo4

@@ -145,7 +145,7 @@ export BOURNE_SHELL=${BOURNE_SHELL:="bash"}
 export JAIL_NET_PREFIX=${JAIL_NET_PREFIX:="172.16.15"}
 export JAIL_NET_MASK=${JAIL_NET_MASK:="/12"}
 export JAIL_NET_INTERFACE=${JAIL_NET_INTERFACE:="lo1"}
-export JAIL_ORDERED_LIST="syslog base dns mysql clamav spamassassin dspam vpopmail haraka webmail monitor haproxy rspamd avg dovecot redis geoip nginx lighttpd apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix nginxfront puppeteer snappymail knot nsd"
+export JAIL_ORDERED_LIST="syslog base dns mysql clamav spamassassin dspam vpopmail haraka webmail monitor haproxy rspamd avg dovecot redis geoip nginx lighttpd apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix nginxfront postfixadmin puppeteer snappymail knot nsd"
 
 export ZFS_VOL=${ZFS_VOL:="zroot"}
 export ZFS_JAIL_MNT=${ZFS_JAIL_MNT:="/jails"}
@@ -703,7 +703,7 @@ seed_pkg_audit()
 enable_jail()
 {
 	case " $(sysrc -n jail_list) " in *" $1 "*)
-		#echo "jail $1 already enabled at startup"
+		tell_status "jail $1 already enabled at startup"
 		return ;;
 	esac
 
@@ -912,6 +912,7 @@ data_mountpoint()
 		geoip )     echo "$_base_dir/usr/local/share/GeoIP"; return ;;
 		mysql )     echo "$_base_dir/var/db/mysql"; return ;;
 		vpopmail )  echo "$_base_dir/usr/local/vpopmail"; return ;;
+		"$TOASTER_MAILDIR" )     echo "$_base_dir/data/$TOASTER_MAILDIR"; return ;;
 	esac
 
 	echo "$_base_dir/data"
@@ -988,7 +989,7 @@ install_sentry()
 provision()
 {
 	case "$1" in
-		host)   fetch_and_exec "$1"; return;;
+		host|vmail|backup)   fetch_and_exec "$1"; return;;
 	esac
 
 	if ! get_jail_ip "$1"; then
