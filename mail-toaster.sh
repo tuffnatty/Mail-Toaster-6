@@ -129,7 +129,7 @@ mt6_version_check()
 	fi
 }
 
-export TOASTER_SRC_URL=${TOASTER_SRC_URL:="https://raw.githubusercontent.com/msimerson/Mail-Toaster-6/master"}
+export TOASTER_SRC_URL=${TOASTER_SRC_URL:="https://raw.githubusercontent.com/tuffnatty/Mail-Toaster-6/master"}
 
 mt6_version_check
 # load the local config file
@@ -960,7 +960,7 @@ fetch_and_exec()
 {
 	if [ ! -d provision ]; then mkdir provision; fi
 
-	fetch -o provision -m "$TOASTER_SRC_URL/provision/$1.sh"
+	#fetch -o provision -m "$TOASTER_SRC_URL/provision/$1.sh"
 	sh "provision/$1.sh"
 }
 
@@ -1133,7 +1133,7 @@ mt6-include()
 		mkdir include || exit
 	fi
 
-	fetch -m -o "include/$1.sh" "$TOASTER_SRC_URL/include/$1.sh"
+	#fetch -m -o "include/$1.sh" "$TOASTER_SRC_URL/include/$1.sh"
 
 	if [ ! -f "include/$1.sh" ]; then
 		echo "unable to download include/$1.sh"
