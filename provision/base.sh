@@ -238,6 +238,9 @@ configure_base()
 
 install_periodic_conf()
 {
+	local _clean_tmp="YES"
+	[ "$TOASTER_USE_TMPFS" = "0" ] || _clean_tmp="NO"
+
 	tell_status "installing /etc/periodic.conf"
 	tee "$BASE_MNT/etc/periodic.conf" <<EO_PERIODIC
 # periodic.conf tuned for periodic inside jails
@@ -281,7 +284,7 @@ daily_backup_pkgng_enable="NO"
 daily_clean_disks_enable="NO"
 daily_clean_disks_verbose="NO"
 daily_clean_hoststat_enable="NO"
-daily_clean_tmps_enable="YES"
+daily_clean_tmps_enable="$_clean_tmp"
 daily_clean_tmps_verbose="NO"
 daily_news_expire_enable="NO"
 daily_ntpd_leapfile_enable="NO"
