@@ -145,6 +145,7 @@ configure_mysql()
 	stage_sysrc mysql_enable=YES
 	stage_sysrc mysql_dbdir="/data/db"
 	stage_sysrc mysql_optfile="/data/etc/extra.cnf"
+	stage_sysrc mysql_args="${TOASTER_MYSQL_ARGS}"
 
 	local _dbdir="$ZFS_DATA_MNT/mysql/db"
 
@@ -157,7 +158,6 @@ innodb_log_group_home_dir       = /data/db
 
 innodb_doublewrite = off
 innodb_file_per_table = 1
-innodb_checksum_algorithm = none
 innodb_flush_neighbors = 0
 EO_MY_CNF
 
