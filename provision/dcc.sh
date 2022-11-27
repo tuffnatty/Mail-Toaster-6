@@ -62,8 +62,8 @@ configure_dcc()
 {
 	sed_inplace \
 		-e '/^DCCIFD_ENABLE=/ s/off/on/' \
-		-e '/^DCCM_LOG_AT=/ s/5/NEVER/' \
-		-e '/^DCCM_REJECT_AT/ s/=.*/=MANY/' \
+		-e '/^DCCM_LOG_AT=/ s/5/50  # NEVER/' \
+		-e '/^DCCM_REJECT_AT/ s/=.*/=  # MANY/' \
 		-e "/^DCCIFD_ARGS/ s/-SList-ID\"/-SList-ID -p*,1025,$JAIL_NET_PREFIX.0\/24\"/" \
 		"$STAGE_MNT/var/db/dcc/dcc_conf"
 
