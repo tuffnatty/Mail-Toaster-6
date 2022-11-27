@@ -59,7 +59,7 @@ setup() {
   export STAGE_MNT; STAGE_MNT=$(mktemp -d)
   cp -r "$BATS_FILE_TMPDIR/stage/." "$STAGE_MNT/"
 
-  provision_fns mysql
+  provision_fns mysql tell_settings
 }
 
 teardown() {
