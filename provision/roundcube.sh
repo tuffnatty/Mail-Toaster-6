@@ -172,11 +172,11 @@ configure_roundcube()
 
 	local _local_path="/usr/local/www/roundcube/config/config.inc.php"
 	local _rcc_conf="${STAGE_MNT}${_local_path}"
-	if [ -f "$ZFS_JAIL_MNT/roundcube.last/$_local_path" ]; then
-		tell_status "preserving $_rcc_conf"
-		cp "$ZFS_JAIL_MNT/roundcube.last/$_local_path" "$_rcc_conf" || exit
-		return
-	fi
+	#if [ -f "$ZFS_JAIL_MNT/roundcube.last/$_local_path" ]; then
+	#	tell_status "preserving $_rcc_conf"
+	#	cp "$ZFS_JAIL_MNT/roundcube.last/$_local_path" "$_rcc_conf" || exit
+	#	return
+	#fi
 
 	tell_status "installing default $_rcc_conf"
 	cp "$_rcc_conf.sample" "$_rcc_conf" || exit
