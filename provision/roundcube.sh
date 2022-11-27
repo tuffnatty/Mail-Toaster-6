@@ -108,7 +108,7 @@ install_roundcube()
 		done
 	else
 		# shellcheck disable=2046
-		stage_pkg_install roundcube-php81 $([ -z "$ROUNDCUBE_EXTENSIONS" ] || printf 'roundcube-%s-php80 ' $ROUNDCUBE_EXTENSIONS)
+		stage_pkg_install roundcube-php81 $([ -z "$ROUNDCUBE_EXTENSIONS" ] || printf 'roundcube-%s-php81 ' $ROUNDCUBE_EXTENSIONS)
 	fi
 }
 
