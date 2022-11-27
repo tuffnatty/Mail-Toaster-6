@@ -87,7 +87,29 @@ install_roundcube()
 	install_nginx || exit
 
 	tell_status "installing roundcube"
-	stage_pkg_install roundcube-php81
+	case "$ROUNDCUBE_CORE_PLUGINS" in
+		*enigma*)	stage_pkg_install gnupg ;;
+	esac
+	if [ "$ROUNDCUBE_FROM_LOCAL_PORT" = "1" ]; then
+		for _port in roundcube $(printf "roundcube-%s " $ROUNDCUBE_EXTENSIONS); do
+			cp -a "ports/$_port" "$STAGE_MNT/root/" || exit
+
+			if [ "$_port" = roundcube ]; then
+				tell_status "configure $_port port options"
+				stage_make_conf roundcube_SET 'mail_roundcube_SET=GD PSPELL SQLITE'
+				stage_make_conf roundcube_UNSET 'mail_roundcube_UNSET=DOCS EXAMPLES LDAP NSC MYSQL PGSQL'
+			fi
+
+			tell_status "install $_port"
+			jexec "$SAFE_NAME" make -C "/root/$_port" showconfig build deinstall install clean BATCH=yes || exit
+
+			rm -fr "$STAGE_MNT/root/$_port"
+			pkg -j "$SAFE_NAME" lock "$_port"
+		done
+	else
+		# shellcheck disable=2046
+		stage_pkg_install roundcube-php81 $([ -z "$ROUNDCUBE_EXTENSIONS" ] || printf 'roundcube-%s-php80 ' $ROUNDCUBE_EXTENSIONS)
+	fi
 }
 
 configure_nginx_server()
@@ -166,25 +188,26 @@ configure_roundcube()
 	fi
 
 	sed -i.bak \
-		-e "/'default_host'/ s/'localhost'/'$_dovecot_ip'/" \
-		-e "/'smtp_server'/  s/= '.*'/= 'ssl:\/\/$TOASTER_MSA'/" \
-		-e "/'smtp_port'/    s/25;/465;/ ; s/587;/465;/" \
 		-e "/'imap_host'/    s/localhost/$_dovecot_ip/" \
-		-e "/'smtp_host'/    s/localhost:587/= ssl:\/\/$TOASTER_MSA:465/" \
+		-e "/'smtp_host'/    s/= '.*'/= 'ssl:\/\/$TOASTER_MSA:465'/" \
 		-e "/'smtp_user'/    s/'';/'%u';/" \
 		-e "/'smtp_pass'/    s/'';/'%p';/" \
-		-e "/'archive',/     s/,$/, 'managesieve',/" \
-		-e "/'product_name'/ s|'Roundcube Webmail'|'$ROUNDCUBE_PRODUCT_NAME'|" \
+		-e "/'product_name'/ s/'Roundcube Webmail'/$(sed_replacement_quote "$(php_quote "$ROUNDCUBE_PRODUCT_NAME")")/" \
+		-e '/^\$config..plugins/,/^];$/d' \
 		"$_rcc_conf" || exit
 
-	tee -a "$_rcc_conf" <<'EO_RC_ADD'
+	local _rcc_plugins=""
+	[ -z "$ROUNDCUBE_EXTENSIONS$ROUNDCUBE_CORE_PLUGINS" ] || \
+		_rcc_plugins="$(printf "'%s', " $ROUNDCUBE_EXTENSIONS $ROUNDCUBE_CORE_PLUGINS | sed 's/, $//')"
 
-$config['log_driver'] = 'syslog';
-$config['session_lifetime'] = 30;
-$config['enable_installer'] = true;
-$config['mime_types'] = '/usr/local/etc/nginx/mime.types';
-$config['use_https'] = true;
-$config['smtp_conn_options'] = array(
+	tee -a "$_rcc_conf" <<EO_RC_ADD
+
+\$config['log_driver'] = 'syslog';
+\$config['session_lifetime'] = 30;
+\$config['enable_installer'] = true;
+\$config['mime_types'] = '/usr/local/etc/nginx/mime.types';
+\$config['use_https'] = true;
+\$config['smtp_conn_options'] = array(
  'ssl'            => array(
    'verify_peer'  => false,
    'verify_peer_name' => false,
@@ -192,6 +215,7 @@ $config['smtp_conn_options'] = array(
    'cafile'       => '/etc/ssl/cert.pem',
  ),
 );
+\$config['plugins'] = [$_rcc_plugins];
 EO_RC_ADD
 
 	if [ "$ROUNDCUBE_SQL" = "1" ]; then
@@ -212,13 +236,48 @@ EO_RC_ADD
 		-e "/enable_installer/ s/true/false/" \
 		"$_rcc_conf"
 
-	tell_status "configure the managesieve plugin"
-	cp "$STAGE_MNT/usr/local/www/roundcube/plugins/managesieve/config.inc.php.dist" \
-		"$STAGE_MNT/usr/local/www/roundcube/plugins/managesieve/config.inc.php"
+	local _plugins_dir="$STAGE_MNT/usr/local/www/roundcube/plugins"
 
-	sed -i.bak \
-		-e "/'managesieve_host'/ s/localhost/dovecot/" \
-		"$STAGE_MNT/usr/local/www/roundcube/plugins/managesieve/config.inc.php"
+	for _plugin in $ROUNDCUBE_CORE_PLUGINS $ROUNDCUBE_EXTENSIONS; do case "$_plugin" in
+		automatic_addressbook)
+			tell_status "configure the $_plugin plugin"
+			local _migration_dir="$_plugins_dir/automatic_addressbook/SQL"
+			if [ "$ROUNDCUBE_SQL" = "1" ]; then
+				mysql_query < "$_migration_dir/mysql.initial.sql" || true
+			else
+				stage_exec sqlite3 -bail /data/sqlite.db < "$_migration_dir/sqlite.initial.sql" || true
+			fi
+			;;
+		enigma)
+			tell_status "configure the $_plugin plugin"
+			local _rcc_pgp_homedir="pgp"
+			mkdir -p "$ZFS_DATA_MNT/roundcube/$_rcc_pgp_homedir"
+			sed -e '/^\$config..enigma_pgp_homedir.. = /'" s,null,'/data/$_rcc_pgp_homedir'," \
+				< "$_plugins_dir/enigma/config.inc.php.dist" \
+				> "$_plugins_dir/enigma/config.inc.php"
+			;;
+		markasjunk)
+			tell_status "configure the $_plugin plugin"
+			sed \
+				< "$_plugins_dir/markasjunk/config.inc.php.dist" \
+				> "$_plugins_dir/markasjunk/config.inc.php"
+			;;
+		managesieve)
+			tell_status "configure the $_plugin plugin"
+			sed -e "/'managesieve_host'/ s/localhost/dovecot/" \
+				< "$_plugins_dir/managesieve/config.inc.php.dist" \
+				> "$_plugins_dir/managesieve/config.inc.php"
+			;;
+		newmail_notifier)
+			tell_status "configure the $_plugin plugin"
+			sed \
+				-e '/^\$config..newmail_notifier_basic.. = / s,false,true,' \
+				-e '/^\$config..newmail_notifier_sound.. = / s,false,true,' \
+				-e '/^\$config..newmail_notifier_desktop.. = / s,false,true,' \
+				< "$_plugins_dir/newmail_notifier/config.inc.php.dist" \
+				> "$_plugins_dir/newmail_notifier/config.inc.php"
+			;;
+	esac; done
 
 	tell_status "apply roundcube customizations to php.ini"
 	sed -i.bak \
@@ -239,7 +298,7 @@ fixup_url()
 
 start_roundcube()
 {
-	fixup_url
+	#fixup_url
 	start_php_fpm
 	start_nginx
 }
