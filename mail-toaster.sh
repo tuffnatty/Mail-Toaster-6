@@ -54,6 +54,7 @@ export ZFS_VOL="zroot"
 export ZFS_JAIL_MNT="/jails"
 export ZFS_DATA_MNT="/data"
 export TOASTER_MYSQL="1"
+export TOASTER_MYSQL_ARGS="--syslog"
 export TOASTER_MYSQL_PASS=""
 export TOASTER_MARIADB="0"
 export TOASTER_PKG_AUDIT="0"
@@ -155,6 +156,7 @@ export FBSD_MIRROR=${FBSD_MIRROR:="ftp://ftp.freebsd.org"}
 # See https://github.com/msimerson/Mail-Toaster-6/wiki/MySQL
 export TOASTER_MYSQL=${TOASTER_MYSQL:="1"}
 export TOASTER_MARIADB=${TOASTER_MARIADB:="0"}
+export TOASTER_MYSQL_ARGS=${TOASTER_MYSQL_ARGS:="--syslog"}
 export SQUIRREL_SQL=${SQUIRREL_SQL:="$TOASTER_MYSQL"}
 export ROUNDCUBE_CORE_PLUGINS=${ROUNDCUBE_CORE_PLUGINS:="archive emoticons enigma jqueryui managesieve markasjunk newmail_notifier userinfo zipdownload"}
 export ROUNDCUBE_EXTENSIONS=${ROUNDCUBE_EXTENSIONS:="automatic_addressbook contextmenu html5_notifier thunderbird_labels veximaccountadmin"}

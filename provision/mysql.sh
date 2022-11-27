@@ -32,7 +32,7 @@ install_mariadb()
 configure_mysql()
 {
 	tell_status "configuring mysql"
-	stage_sysrc mysql_args="--syslog"
+	stage_sysrc mysql_args="${TOASTER_MYSQL_ARGS}"
 	stage_sysrc mysql_optfile="/var/db/mysql/my.cnf"
 
 	if [ -f "$ZFS_JAIL_MNT/mysql/etc/my.cnf" ]; then
