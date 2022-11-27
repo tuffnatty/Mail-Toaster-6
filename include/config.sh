@@ -17,7 +17,7 @@ mt6_defaults()
 	export JAIL_NET_PREFIX=${JAIL_NET_PREFIX:-"172.16.15"}
 	export JAIL_NET_MASK=${JAIL_NET_MASK:-"/19"}
 	export JAIL_NET_INTERFACE=${JAIL_NET_INTERFACE:-"lo1"}
-	export JAIL_ORDERED_LIST="syslog base dns mysql clamav spamassassin foundationdb vpopmail haraka webmail munin haproxy rspamd stalwart dovecot redis geoip nginx mailtest apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix puppeteer snappymail knot nsd bsd_cache wildduck zonemta centos ubuntu bhyve-ubuntu mailman git nginxfront"
+	export JAIL_ORDERED_LIST="syslog base dns mysql clamav spamassassin foundationdb vpopmail haraka webmail munin haproxy rspamd stalwart dovecot redis geoip nginx mailtest apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix puppeteer snappymail knot nsd bsd_cache wildduck zonemta centos ubuntu bhyve-ubuntu mailman git nginxfront postfixadmin"
 	export JAIL_VNET_INTERFACE=${JAIL_VNET_INTERFACE:-"bridge0"}
 	export JAIL_VNET_PREFIX=${JAIL_VNET_PREFIX:-"172.16.16"}
 
@@ -39,6 +39,7 @@ mt6_defaults()
 	export TOASTER_EDITOR_PORT=${TOASTER_EDITOR_PORT:-"vim-tiny"}
 	export TOASTER_INGRESS_JAIL=${TOASTER_INGRESS_JAIL:-"haproxy"}
 	export TOASTER_INGRESS_SSL_TERMINATION="${TOASTER_INGRESS_SSL_TERMINATION:-"0"}"
+	export TOASTER_MAILDIR="${TOASTER_MAILDIR:-"vmail"}"
 	# See https://github.com/msimerson/Mail-Toaster-6/wiki/MySQL
 	export TOASTER_MYSQL=${TOASTER_MYSQL:-"1"}
 	export TOASTER_MARIADB=${TOASTER_MARIADB:-"0"}
@@ -154,6 +155,7 @@ export TOASTER_EDITOR="vim"
 export TOASTER_EDITOR_PORT="vim-tiny"
 export TOASTER_INGRESS_JAIL="haproxy"
 export TOASTER_INGRESS_SSL_TERMINATION="0"
+export TOASTER_MAILDIR="vmail"  # under shared /data volume
 export TOASTER_MARIADB="0"
 export TOASTER_MSA="haraka"
 export TOASTER_MTA="haraka"

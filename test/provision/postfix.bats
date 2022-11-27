@@ -10,6 +10,7 @@ setup() {
   export PATH="$BATS_TEST_DIRNAME/stubs:$PATH"
 
   export ZFS_DATA_MNT="$STAGE_MNT/data"
+  export TOASTER_MAILDIR="vmail"
 
   MASTER_CF="$ZFS_DATA_MNT/postfix/etc/master.cf"
   mkdir -p "$(dirname "$MASTER_CF")"

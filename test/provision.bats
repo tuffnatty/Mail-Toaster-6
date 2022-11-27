@@ -14,7 +14,7 @@ setup() {
 # ---------------------------------------------------------------------------
 _is_special() {
   case "$1" in
-    provision/base.sh|provision/bhyve-ubuntu.sh) return 0 ;;
+    provision/base.sh|provision/bhyve-ubuntu.sh|provision/vmail.sh) return 0 ;;
   esac
   return 1
 }
@@ -23,7 +23,7 @@ _is_special() {
 _no_start_required() {
   case "$1" in
     provision/base.sh|provision/bhyve-ubuntu.sh|\
-    provision/certbot.sh|provision/host.sh|provision/letsencrypt.sh) return 0 ;;
+    provision/certbot.sh|provision/host.sh|provision/letsencrypt.sh|provision/vmail.sh) return 0 ;;
   esac
   return 1
 }
@@ -140,9 +140,9 @@ _no_start_required() {
 # JAIL_FSTAB mount assertions
 # ---------------------------------------------------------------------------
 
-@test "dovecot mounts vpopmail home in JAIL_FSTAB" {
+@test "dovecot mounts TOASTER_MAILDIR in JAIL_FSTAB" {
   run grep "^export JAIL_FSTAB" provision/dovecot.sh
-  assert_output --partial "vpopmail"
+  assert_output --partial "TOASTER_MAILDIR"
 }
 
 @test "spamassassin mounts geoip in JAIL_FSTAB" {
