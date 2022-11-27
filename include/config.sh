@@ -63,6 +63,9 @@ mt6_defaults()
 	export NEWSYSLOG_COMPRESSION_METHOD=${NEWSYSLOG_COMPRESSION_METHOD:-"legacy"}
 	export POSTFIX_ADD_MYNETWORKS="${POSTFIX_ADD_MYNETWORKS:-}"
 	export ROUNDCUBE_SQL=${ROUNDCUBE_SQL:-"$TOASTER_MYSQL"}
+	export ROUNDCUBE_CORE_PLUGINS=${ROUNDCUBE_CORE_PLUGINS:-"archive emoticons enigma jqueryui managesieve markasjunk newmail_notifier userinfo zipdownload"}
+	export ROUNDCUBE_EXTENSIONS=${ROUNDCUBE_EXTENSIONS:-"automatic_addressbook contextmenu html5_notifier thunderbird_labels"}
+	export ROUNDCUBE_FROM_LOCAL_PORT=${ROUNDCUBE_FROM_LOCAL_PORT:-"0"}
 	export ROUNDCUBE_PRODUCT_NAME=${ROUNDCUBE_PRODUCT_NAME:-"Roundcube Webmail"}
 	export ROUNDCUBE_ATTACHMENT_SIZE_MB=${ROUNDCUBE_ATTACHMENT_SIZE_MB:-"25"}
 	export SQUIRREL_SQL=${SQUIRREL_SQL:-"$TOASTER_MYSQL"}
@@ -176,6 +179,11 @@ export NEWSYSLOG_COMPRESSION_METHOD="legacy"  # set to "none" to disable log com
 export POSTFIX_ADD_MYNETWORKS=""  # additional trusted network masks for SMTP
 export ROUNDCUBE_SQL="0"
 export ROUNDCUBE_DEFAULT_HOST=""
+export ROUNDCUBE_CORE_PLUGINS="archive emoticons enigma jqueryui managesieve markasjunk newmail_notifier userinfo zipdownload"
+export ROUNDCUBE_EXTENSIONS="automatic_addressbook contextmenu html5_notifier thunderbird_labels"
+# To build Roundcube from a local port, be that for customizations or version lock,
+# set ROUNDCUBE_FROM_LOCAL_PORT to 1 and place the port and any wanted extension ports to ./ports
+export ROUNDCUBE_FROM_LOCAL_PORT="0"
 export ROUNDCUBE_PRODUCT_NAME="Roundcube Webmail"
 export ROUNDCUBE_ATTACHMENT_SIZE_MB="25"
 export TOASTER_HARAKA_VERSION=""

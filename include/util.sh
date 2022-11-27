@@ -247,3 +247,5 @@ EO_RESOLV
 	sed_inplace -e '/^ServerName/ s/update.FreeBSD.org/freebsd-update/' \
 		"$_root/etc/freebsd-update.conf"
 }
+
+sed_replacement_quote() { printf "%s" "$1" | sed -E 's,([&\\/]),\\\1,g'; }
