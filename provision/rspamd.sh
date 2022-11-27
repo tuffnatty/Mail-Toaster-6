@@ -252,7 +252,11 @@ EO_WORKER
 
 configure_controller()
 {
-	_pass=$(jexec vpopmail /usr/local/vpopmail/bin/vuserinfo -C "postmaster@${TOASTER_MAIL_DOMAIN}")
+	local _pass
+	case "$TOASTER_VIRTUAL_DOMAIN_MANAGER" in
+		vpopmail) _pass=$(jexec vpopmail /usr/local/vpopmail/bin/vuserinfo -C "postmaster@${TOASTER_MAIL_DOMAIN}") ;;
+		postfixadmin) _pass="$TOASTER_ADMIN_PASS" ;;
+	esac
 
 	store_config "$RSPAMD_ETC/local.d/worker-controller.inc" <<EO_CONTROLLER
 password = "$(jexec stage rspamadm pw -p "$_pass")";
