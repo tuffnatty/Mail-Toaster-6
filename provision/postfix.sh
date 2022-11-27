@@ -78,9 +78,9 @@ configure_postfix()
 		stage_exec newaliases
 	fi
 
-	if [ ! -f "$ZFS_JAIL_MNT/usr/local/etc/mail/mailer.conf" ]; then
-		if [ ! -d "$ZFS_JAIL_MNT/usr/local/etc/mail" ]; then
-			mkdir "$ZFS_JAIL_MNT/usr/local/etc/mail"
+	if [ ! -f "$STAGE_MNT/usr/local/etc/mail/mailer.conf" ]; then
+		if [ ! -d "$STAGE_MNT/usr/local/etc/mail" ]; then
+			mkdir "$STAGE_MNT/usr/local/etc/mail"
 		fi
 		stage_exec install -m 0644 /usr/local/share/postfix/mailer.conf.postfix /usr/local/etc/mail/mailer.conf
 	fi
