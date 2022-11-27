@@ -76,7 +76,7 @@ configure_dmarc()
 
 	actions = {
 		quarantine = "add_header";
-		reject = "reject";
+		reject = "add_header";
 	}
 	send_reports = true;
 	# Enables storing reporting information to redis
@@ -266,6 +266,13 @@ secure_ip = $(get_jail_ip6 dovecot);
 EO_CONTROLLER
 }
 
+configure_actions()
+{
+	store_config "$RSPAMD_ETC/local.d/actions.conf" <<EO_ACTIONS
+reject = 1000;
+EO_ACTIONS
+}
+
 configure_rspamd()
 {
 	tell_status "configuring rspamd"
@@ -291,6 +298,7 @@ configure_rspamd()
 	configure_metadefender
 	configure_worker
 	configure_controller
+	configure_actions
 
 	echo "done"
 }
