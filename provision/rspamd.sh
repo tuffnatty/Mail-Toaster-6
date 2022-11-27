@@ -72,7 +72,7 @@ configure_dmarc()
 
 	actions = {
 		quarantine = "add_header";
-		reject = "reject";
+		reject = "add_header";
 	}
 	send_reports = true;
 	# Enables storing reporting information to redis
