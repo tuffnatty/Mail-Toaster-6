@@ -17,7 +17,7 @@ mt6_defaults()
 	export JAIL_NET_PREFIX=${JAIL_NET_PREFIX:-"172.16.15"}
 	export JAIL_NET_MASK=${JAIL_NET_MASK:-"/19"}
 	export JAIL_NET_INTERFACE=${JAIL_NET_INTERFACE:-"lo1"}
-	export JAIL_ORDERED_LIST="syslog base dns mysql clamav spamassassin foundationdb vpopmail haraka webmail munin haproxy rspamd stalwart dovecot redis geoip nginx mailtest apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix puppeteer snappymail knot nsd bsd_cache wildduck zonemta centos ubuntu bhyve-ubuntu mailman git"
+	export JAIL_ORDERED_LIST="syslog base dns mysql clamav spamassassin foundationdb vpopmail haraka webmail munin haproxy rspamd stalwart dovecot redis geoip nginx mailtest apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix puppeteer snappymail knot nsd bsd_cache wildduck zonemta centos ubuntu bhyve-ubuntu mailman git postfixadmin"
 	export JAIL_VNET_INTERFACE=${JAIL_VNET_INTERFACE:-"bridge0"}
 	export JAIL_VNET_PREFIX=${JAIL_VNET_PREFIX:-"172.16.16"}
 
@@ -49,6 +49,7 @@ mt6_defaults()
 	export TOASTER_PKG_REPO_NAME=${TOASTER_PKG_REPO_NAME:-""}
 	export TOASTER_PKG_REPO_URL=${TOASTER_PKG_REPO_URL:-""}
 	export TOASTER_USE_TMPFS=${TOASTER_USE_TMPFS:-"0"}
+	export TOASTER_VIRTUAL_DOMAIN_MANAGER=${TOASTER_VIRTUAL_DOMAIN_MANAGER:-"vpopmail"}
 	export TOASTER_VPOPMAIL_CLEAR=${TOASTER_VPOPMAIL_CLEAR:-"1"}
 	export TOASTER_VPOPMAIL_EXT=${TOASTER_VPOPMAIL_EXT:-"0"}
 	export TOASTER_QMHANDLE=${TOASTER_QMHANDLE:-"0"}
@@ -147,6 +148,7 @@ export TOASTER_PKG_BRANCH="latest"
 export TOASTER_PKG_REPO_NAME=""  # local pkg repository name
 export TOASTER_PKG_REPO_URL=""  # local pkg repository URL (just the scheme://host part)
 export TOASTER_USE_TMPFS="0"
+export TOASTER_VIRTUAL_DOMAIN_MANAGER="vpopmail"
 export TOASTER_VPOPMAIL_CLEAR="1"
 export TOASTER_VPOPMAIL_EXT="0"
 export TOASTER_WEBMAIL_PROXY="haproxy"
