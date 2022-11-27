@@ -183,7 +183,7 @@ cleanup_staged_fs()
 	tell_status "stage cleanup"
 	stop_jail stage
 	stage_unmount
-	zfs_destroy_fs "$ZFS_JAIL_VOL/stage" -f
+	zfs_destroy_fs "$ZFS_JAIL_VOL/stage" -fr  # because of snapshots
 }
 
 install_fstab()
@@ -372,6 +372,8 @@ promote_staged_jail()
 	rename_ready_to_active "$1"
 	add_jail_conf "$1"
 	#add_automount "$1"
+	[ "$ZFS_SNAPSHOT_PROVISIONED" = 0 ] ||
+		zfs snapshot "$ZFS_JAIL_VOL/$1@provisioned"
 
 	tell_status "service jail start $1"
 	service jail start "$1" || exit 1
