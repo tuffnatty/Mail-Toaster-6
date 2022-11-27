@@ -9,6 +9,7 @@ setup() {
   export ZFS_JAIL_MNT="$BATS_TEST_TMPDIR/jails"
   export TOASTER_HOSTNAME="mail.example.com"
   export TOASTER_MAIL_DOMAIN="example.com"
+  export TOASTER_VIRTUAL_DOMAIN_MANAGER="vpopmail"
 
   LOCAL_CONF="$ZFS_DATA_MNT/dovecot/etc/local.conf"
   mkdir -p "$(dirname "$LOCAL_CONF")"
