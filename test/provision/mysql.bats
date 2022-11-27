@@ -20,7 +20,7 @@ setup_file() {
   local _fns="$BATS_FILE_TMPDIR/mysql_fns_only.sh"
 
   # Strip the execution block so setup() can source function definitions only.
-  awk '/^base_snapshot_exists/{exit} {print}' \
+  awk '/^tell_settings/{exit} {print}' \
     "$BATS_TEST_DIRNAME/../../provision/mysql.sh" > "$_fns"
 
   export MT6_TEST_ENV=1
