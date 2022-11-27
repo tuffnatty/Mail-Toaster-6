@@ -140,9 +140,9 @@ _no_start_required() {
 # JAIL_FSTAB mount assertions
 # ---------------------------------------------------------------------------
 
-@test "dovecot mounts vpopmail home in JAIL_FSTAB" {
-  run grep "JAIL_FSTAB=.*vpopmail" provision/dovecot.sh
-  assert_output --partial "vpopmail"
+@test "dovecot mounts something in JAIL_FSTAB" {
+  run grep "^export JAIL_FSTAB" provision/dovecot.sh
+  assert_output --partial "DOVECOT_FSTAB"
 }
 
 @test "spamassassin mounts geoip in JAIL_FSTAB" {

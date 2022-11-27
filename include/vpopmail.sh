@@ -170,3 +170,74 @@ mail_qmail_UNSET=RCDLINK
 	fi
 	#stage_port_install mail/qmail
 }
+
+vpopmail_get_mysql_pass() {
+	grep -v "^#" "$(get_jail_data vpopmail)/home/etc/vpopmail.mysql" | head -n1 | cut -f4 -d'|'
+}
+
+vpopmail_configure_dovecot_sql()
+{
+	local _vpass
+	_vpass=$(vpopmail_get_mysql_pass)
+
+	store_config "$1" "overwrite" <<EO_DOVECOT_VPOPMAIL_SQL
+  driver = mysql
+  default_pass_scheme = PLAIN
+  connect = host=mysql user=vpopmail password=$_vpass dbname=vpopmail
+
+  password_query = SELECT \\
+    CONCAT(v.pw_name, '@', v.pw_domain) AS user \\
+    ,v.pw_clear_passwd AS password \\
+    ,v.pw_dir AS userdb_home \\
+    ,89 AS userdb_uid \\
+    ,89 AS userdb_gid \\
+    ,CONCAT('*:bytes=', REPLACE(SUBSTRING_INDEX(v.pw_shell, 'S', 1), 'NOQUOTA', '0')) AS userdb_quota_rule \\
+    FROM vpopmail v \\
+      LEFT JOIN aliasdomains a ON a.alias='%d' \\
+    WHERE v.pw_name = '%n' \\
+      AND (v.pw_domain='%d' OR v.pw_domain=a.domain) \\
+      AND ('%a'!='995' OR !(v.pw_gid & 2)) \\
+      AND ('%a'!='993' OR !(v.pw_gid & 8))
+
+  user_query = SELECT \\
+    pw_dir AS home \\
+    ,89 AS uid \\
+    ,89 AS gid \\
+    ,CONCAT('*:bytes=', REPLACE(SUBSTRING_INDEX(pw_shell, 'S', 1), 'NOQUOTA', '0')) AS quota_rule \\
+    FROM vpopmail \\
+    WHERE pw_name = '%n' \\
+      AND pw_domain = '%d'
+
+  iterate_query = SELECT CONCAT(pw_name, '@', pw_domain) AS user FROM vpopmail
+EO_DOVECOT_VPOPMAIL_SQL
+}
+
+vpopmail_configure_dovecot_lastauth()
+{
+	local _dovecot_data="$1"
+	store_exec "$_dovecot_data/bin/lastauth.sh" <<EO_LASTAUTH
+#!/bin/sh
+
+set -e
+
+domain=\$(echo \$USER | cut -f2 -d@)
+user=\$(echo \$USER | cut -f1 -d@)
+
+echo "UPDATE vpopmail.lastauth SET timestamp=UNIX_TIMESTAMP(now()), remote_ip='\$IP' WHERE user='\$user' AND domain='\$domain';" \
+ | mysql --defaults-extra-file=/data/etc/.my.cnf vpopmail
+
+exec "\$@"
+EO_LASTAUTH
+
+	_mycnf="$_dovecot_data/etc/.my.cnf"
+	store_config "$_mycnf" "overwrite" <<EO_DOVECOT_MY
+[client]
+host=mysql
+user=vpopmail
+password=$(vpopmail_get_mysql_pass)
+database=vpopmail
+EO_DOVECOT_MY
+
+	chmod 0640 "$_mycnf"
+	chown 89:89 "$_mycnf"
+}

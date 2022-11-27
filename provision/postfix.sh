@@ -23,7 +23,9 @@ install_postfix()
 	stage_exec ln -s /data/spool /var/spool/postfix
 
 	tell_status "installing postfix"
-	stage_pkg_install postfix-sasl opendkim
+	local _postfix_pkg="postfix-sasl"
+	[ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" != postfixadmin ] || _postfix_pkg="postfix-mysql"
+	stage_pkg_install "$_postfix_pkg" opendkim
 	stage_exec install -m 0644 /usr/local/share/postfix/mailer.conf.postfix /usr/local/etc/mail/mailer.conf
 
 	if [ -n "$TOASTER_NRPE" ]; then
@@ -157,11 +159,24 @@ configure_postfix_main_cf()
 		stage_exec postmap /data/etc/sasl_passwd
 		stage_exec postconf -e 'smtp_sasl_auth_enable = yes'
 		stage_exec postconf -e 'smtp_sasl_password_maps = hash:/data/etc/sasl_passwd'
+	elif [ "$TOASTER_MSA" = postfix ]; then
+		stage_exec postconf -e 'smtpd_sasl_type = dovecot'
+		stage_exec postconf -e "smtpd_sasl_path = inet:$(get_jail_ip dovecot):$DOVECOT_AUTH_LISTENER_TCP_PORT"
+		stage_exec postconf -e 'broken_sasl_auth_clients = yes'
+		stage_exec postconf -e 'smtpd_sasl_auth_enable = yes'
+		stage_exec postconf -e 'smtpd_sasl_local_domain ='
+		stage_exec postconf -e 'smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination'
 	fi
 
 	if [ -f "$(get_jail_data postfix)/etc/transport" ]; then
 		stage_exec postmap /data/etc/transport
 		stage_exec postconf -e 'transport_maps = hash:/data/etc/transport'
+	elif [ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" = postfixadmin ]; then
+		postfixadmin_install_postfix_mysql_maps "$STAGE_MNT/data/etc"
+		stage_exec postconf -e "virtual_transport = lmtp:$(get_jail_ip dovecot):24"
+		stage_exec postconf -e "virtual_mailbox_domains = proxy:mysql:$MAIL_CONFIG/virtual_domain_maps.cf"
+		stage_exec postconf -e "virtual_alias_maps = proxy:mysql:$MAIL_CONFIG/virtual_alias_maps.cf, proxy:mysql:$MAIL_CONFIG/virtual_alias_domain_maps.cf, proxy:mysql:$MAIL_CONFIG/virtual_alias_domain_catchall_maps.cf"
+		stage_exec postconf -e "virtual_mailbox_maps = proxy:mysql:$MAIL_CONFIG/virtual_mailbox_maps.cf, proxy:mysql:$MAIL_CONFIG/virtual_alias_domain_mailbox_maps.cf"
 	fi
 
 	if [ "${POSTFIX_PLUS_ADDRESSING:-0}" = "1" ]; then
