@@ -651,6 +651,8 @@ $(get_jail_ip "$_j")		$_j"
 
 update_mt6()
 {
+	return 0
+	# shellcheck disable=SC2317
 	if [ -d ".git" ]; then
 		git remote update
 		git status -u no
@@ -659,7 +661,7 @@ update_mt6()
 
 update_host() {
 	sysrc -c -q background_fsck=NO || echo_do sysrc -q background_fsck=NO
-	update_mt6
+	#update_mt6
 	update_freebsd
 	configure_pkg_latest ""
 	configure_ntp

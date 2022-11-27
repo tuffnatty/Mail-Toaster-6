@@ -56,7 +56,8 @@ install_pfrule()
 	local _pfdir
 	_pfdir="$(get_jail_etc "$1")/pf.conf.d"
 
-	mt6-fetch contrib pfrule.sh
+	# disable updates
+	#mt6-fetch contrib pfrule.sh
 	echo_do \
 	install -d "$_pfdir"
 	echo_do \
