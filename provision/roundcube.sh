@@ -37,7 +37,7 @@ install_roundcube_mysql()
 			echo "preserving roundcube password $_rcpass"
 		fi
 	else
-		_rcpass=$(get_random_pass 18 safe)
+		_rcpass="$ROUNDCUBE_MYSQL_PASS"
 	fi
 
 	local _rcc_dir="$STAGE_MNT/usr/local/www/roundcube/config"
