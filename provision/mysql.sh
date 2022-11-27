@@ -3,6 +3,8 @@
 set -e
 
 . mail-toaster.sh
+service_config mysql
+export MYSQL_ARGS=${MYSQL_ARGS:-"--syslog --innodb-checksum-algorithm=none"}
 
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
@@ -147,6 +149,7 @@ configure_mysql()
 	stage_sysrc mysql_enable=YES
 	stage_sysrc mysql_dbdir="/data/db"
 	stage_sysrc mysql_optfile="/data/etc/extra.cnf"
+	stage_sysrc mysql_args="${MYSQL_ARGS}"
 
 	local _dbdir
 	_dbdir="$(get_jail_data mysql)/db"
@@ -160,7 +163,6 @@ innodb_log_group_home_dir       = /data/db
 
 innodb_doublewrite = off
 innodb_file_per_table = 1
-innodb_checksum_algorithm = none
 innodb_flush_neighbors = 0
 EO_MY_CNF
 
@@ -293,6 +295,7 @@ $_alters
 	exit 1
 }
 
+tell_settings MYSQL
 base_snapshot_exists || exit 1
 migrate_mysql_dbs
 check_mysql_native_passwords
