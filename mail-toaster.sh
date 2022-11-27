@@ -504,7 +504,7 @@ cleanup_staged_fs()
 	tell_status "stage cleanup"
 	stop_jail stage
 	stage_unmount "$1"
-	zfs_destroy_fs "$ZFS_JAIL_VOL/stage" -f
+	zfs_destroy_fs "$ZFS_JAIL_VOL/stage" -fr
 }
 
 assure_data_volume_mount_is_declared()
@@ -626,7 +626,7 @@ rename_active_to_last()
 	local ACTIVE="$ZFS_JAIL_VOL/$1"
 	local LAST="$ACTIVE.last"
 
-	zfs_destroy_fs "$LAST"
+	zfs_destroy_fs "$LAST" -r
 
 	if ! zfs_filesystem_exists "$ACTIVE"; then return; fi
 
@@ -732,6 +732,7 @@ promote_staged_jail()
 	rename_ready_to_active "$1"
 	add_jail_conf "$1"
 	#add_automount "$1"
+	echo_do zfs snapshot "$ZFS_JAIL_VOL/$1@provisioned"
 
 	tell_status "service jail start $1"
 	service jail start "$1" || exit 1
