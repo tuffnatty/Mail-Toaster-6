@@ -103,15 +103,21 @@ configure_opendkim()
 	tell_status "See http://www.opendkim.org/opendkim-README"
 
 	local _dkim_dir="/data/dkim"
+	local _selector
 
 	echo_stage_exec mkdir -p /data/etc "$_dkim_dir"
 
 	local _opendkim_keyfile="$_dkim_dir/$TOASTER_MAIL_DOMAIN.private"
+	if [ ! -f "$STAGE_MNT$_opendkim_keyfile" ]; then
+		_selector="$(date '+%b%Y' | tr '[:upper:]' '[:lower:]')"
+		echo_stage_exec opendkim-genkey -b 2048 -h sha256 -D "$_dkim_dir" -s "$_selector" -v -d "$TOASTER_MAIL_DOMAIN"
+		echo_stage_exec mv "$_dkim_dir/$_selector.private" "$_opendkim_keyfile"
+		tell_status "Add TXT record: $(cat "$STAGE_MNT$_dkim_dir/$_selector.txt")"
+	fi
 	if [ -f "$STAGE_MNT/data/etc/opendkim.conf" ]; then
 		echo "opendkim config retained"
 	else
-		local _selector
-		_selector="$(date '+%b%Y' | tr '[:upper:]' '[:lower:]')"
+		[ -n "$_selector" ] || _selector="$(date '+%b%Y' | tr '[:upper:]' '[:lower:]')"
 		sed \
 			-e "/^Domain/ s/example.com/$TOASTER_MAIL_DOMAIN/"  \
 			-e "/^KeyFile/ s,/.*\$,$_opendkim_keyfile,"  \
@@ -121,15 +127,9 @@ configure_opendkim()
 			> "$STAGE_MNT/data/etc/opendkim.conf"
 	fi
 
-	if [ ! -f "$STAGE_MNT$_opendkim_keyfile" ]; then
-		echo_stage_exec opendkim-genkey -D "$_dkim_dir" -s "$_selector" -v -d "$TOASTER_MAIL_DOMAIN"
-		echo_stage_exec mv "$_dkim_dir/$_selector.private" "$_opendkim_keyfile"
-		tell_status "Add TXT record: $(cat "$STAGE_MNT$_dkim_dir/$_selector.txt")"
-	fi
-
-	stage_exec postconf -e 'milter_default_action = accept'  
+	stage_exec postconf -e 'milter_default_action = accept'
 	stage_exec postconf -e 'smtpd_milters = inet:localhost:2016'
-	stage_exec postconf -e 'non_smtpd_milters = $smtpd_milters'   
+	stage_exec postconf -e 'non_smtpd_milters = $smtpd_milters'
 }
 
 configure_tls_certs()
