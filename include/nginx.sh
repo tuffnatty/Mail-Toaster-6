@@ -38,10 +38,10 @@ install_nginx_newsyslog()
 	tell_status "enabling nginx log file rotation"
 	tee "$STAGE_MNT/etc/newsyslog.conf.d/nginx" <<EO_NG_NSL
 # rotate nightly (default)
-/var/log/nginx/*.log		root:wheel	644	 7     *   @T00   BCGX  /var/run/nginx.pid 30
+/data/log/nginx/*.log		root:wheel	644	 7     *   @T00   BCGX  /var/run/nginx.pid 30
 
 # rotate when file size reaches 20M
-#/var/log/nginx/*.log		root:wheel	644	 7     20480	 *   BCGX  /var/run/nginx.pid 30
+#/data/log/nginx/*.log		root:wheel	644	 7     20480	 *   BCGX  /var/run/nginx.pid 30
 EO_NG_NSL
 
 }
@@ -57,6 +57,8 @@ configure_nginx()
 	if [ ! -d "$_datadir/etc" ]; then mkdir "$_datadir/etc"; fi
 
 	stage_sysrc nginx_flags='-c /data/etc/nginx.conf'
+
+	echo_do mkdir -p "$ZFS_DATA_MNT/$1/log/nginx"
 
 	local _installed="$_datadir/etc/nginx.conf"
 	if [ -f "$_installed" ]; then
@@ -84,6 +86,8 @@ $_add_modules
 
 worker_processes  1;
 
+error_log /data/log/nginx/error.log;
+
 events {
 	worker_connections  256;
 }
@@ -91,6 +95,11 @@ events {
 http {
 	include       /usr/local/etc/nginx/mime.types;
 	default_type  application/octet-stream;
+
+	log_format  main  '\$remote_addr - \$remote_user [\$time_local] "\$request" '
+			  '\$status \$body_bytes_sent "\$http_referer" '
+			  '"\$http_user_agent" "\$http_x_forwarded_for"';
+	access_log /data/log/nginx/access.log main;
 
 	sendfile        on;
 	gzip on;
