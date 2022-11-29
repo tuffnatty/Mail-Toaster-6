@@ -9,7 +9,12 @@ install_nginx()
 	tell_status "installing nginx"
 	stage_pkg_install nginx
 
-	install_nginx_newsyslog
+	case "$TOASTER_NGINX_LOG_DIR" in
+		syslog:*) ;;
+		*)	[ -d "$TOASTER_NGINX_LOG_DIR" ] || mkdir -p "$TOASTER_NGINX_LOG_DIR"
+			install_nginx_newsyslog
+			;;
+	esac
 
 	if [ "$TOASTER_WEBMAIL_PROXY" = "nginx" ] && [ "$TOASTER_NGINX_ACME" = "1" ]; then
 		stage_pkg_install nginx-acme
@@ -43,10 +48,10 @@ install_nginx_newsyslog()
 	tell_status "enabling nginx log file rotation"
 	store_config "$STAGE_MNT/etc/newsyslog.conf.d/nginx.conf" <<EO_NG_NSL
 # rotate nightly (default)
-/var/log/nginx/*.log		root:wheel	644	 7     *   @T00   BCGX  /var/run/nginx.pid 30
+$TOASTER_NGINX_LOG_DIR/*.log		root:wheel	644	 7     *   @T00   BCGX  /var/run/nginx.pid 30
 
 # rotate when file size reaches 20M
-#/var/log/nginx/*.log		root:wheel	644	 7     20480	 *   BCGX  /var/run/nginx.pid 30
+#$TOASTER_NGINX_LOG_DIR/*.log		root:wheel	644	 7     20480	 *   BCGX  /var/run/nginx.pid 30
 EO_NG_NSL
 
 }
@@ -120,6 +125,8 @@ load_module /usr/local/libexec/nginx/ngx_stream_module.so;
 
 worker_processes  1;
 
+error_log $TOASTER_NGINX_LOG_DIR/error.log;
+
 events {
 	worker_connections  256;
 }
@@ -127,6 +134,8 @@ events {
 http {
 	include       /usr/local/etc/nginx/mime.types;
 	default_type  application/octet-stream;
+
+	access_log $TOASTER_NGINX_LOG_DIR/access.log combined;
 
 	sendfile        on;
 	gzip on;

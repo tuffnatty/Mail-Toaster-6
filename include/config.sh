@@ -37,6 +37,7 @@ mt6_defaults()
 	export TOASTER_MYSQL=${TOASTER_MYSQL:-"1"}
 	export TOASTER_MARIADB=${TOASTER_MARIADB:-"0"}
 	export TOASTER_NGINX_ACME=${TOASTER_NGINX_ACME:-"0"}
+	export TOASTER_NGINX_LOG_DIR=${TOASTER_NGINX_LOG_DIR:-"/var/log/nginx"}
 	export TOASTER_NTP=${TOASTER_NTP:-"chrony"}
 	export TOASTER_MSA=${TOASTER_MSA:-"haraka"}
 	export TOASTER_PKG_AUDIT=${TOASTER_PKG_AUDIT:-"0"}
@@ -136,6 +137,7 @@ export TOASTER_MSA="haraka"
 export TOASTER_MYSQL="1"
 export TOASTER_MYSQL_PASS=""
 export TOASTER_NGINX_ACME="0"
+export TOASTER_NGINX_LOG_DIR=""  # /data/log/nginx for log persistence, or syslog: for logging to syslog
 export TOASTER_NRPE=""
 export TOASTER_NTP=""
 export TOASTER_BASE_METHOD="$(default_base_method)"  # fetch | bsdinstall | pkgbase
