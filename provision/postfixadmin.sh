@@ -10,6 +10,8 @@ mt6-include php
 mt6-include nginx
 mt6-include mysql
 
+pa_php_ver=81
+
 mysql_error_warning()
 {
     echo; echo "-----------------"
@@ -63,11 +65,11 @@ postfixadmin_init_db()
 install_postfixadmin()
 {
 	set -e
-	install_php 80 "imap" || exit
+	install_php "$pa_php_ver" "imap" || exit
 	install_nginx || exit
 
 	tell_status "installing postfixadmin"
-	stage_pkg_install postfixadmin33-php80
+	stage_pkg_install "postfixadmin33-php$pa_php_ver"
 	postfixadmin_root="/usr/local/www/postfixadmin33"
 
 	tell_status "installing postfixadmin-cli"
@@ -138,8 +140,7 @@ configure_postfixadmin()
 	tell_status "customizing $_pa_conf"
 	local _pa_pass _pa_hashed_pass _pa_salt
 	_pa_pass="$(openssl rand -hex 18)"
-	_pa_salt="$(openssl rand -hex 10)"
-	_pa_hashed_pass="$_pa_salt:$(echo -n "$_pa_salt:$_pa_pass" | openssl sha1 | cut -w -f 2)"
+	_pa_hashed_pass="$(stage_exec php -r "var_export(password_hash('$_pa_pass', PASSWORD_DEFAULT));")"
 	tell_status "generated postfixadmin setup password is $_pa_pass"
 
 	local _pa_admin_url
@@ -151,7 +152,7 @@ configure_postfixadmin()
 		-e "/^\\\$CONF\\['database_user'/	s/postfix/postfix_user/" \
 		-e "/^\\\$CONF\\['database_password'/	s/postfixadmin/$(sed_replacement_quote "$TOASTER_MYSQL_PASS")/" \
 		-e "/^\\\$CONF\\['database_name'/	s/postfix/postfix_db/" \
-		-e "/^\\\$CONF\\['setup_password'/	s/changeme/$_pa_hashed_pass/" \
+		-e "/^\\\$CONF\\['setup_password'/	s/'changeme'/$(sed_replacement_quote "$_pa_hashed_pass")/" \
 		-e "/^\\\$CONF\\['vacation'/		s/YES/NO/" \
 		-e "/^\\\$CONF\\['domain_path'/		s/NO/YES/" \
 		-e "/^\\\$CONF\\['domain_in_mailbox'/	s/YES/NO/" \
