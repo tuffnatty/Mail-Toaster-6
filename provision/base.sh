@@ -211,7 +211,11 @@ configure_base()
 	fi
 
 	tell_status "adding base jail resolv.conf"
-	cp /etc/resolv.conf "$BASE_MNT/etc" || exit
+	if [ "$(sysrc -n local_unbound_enable)" = "YES" ]; then
+        	sed 's/127\.0\.0\.1/8.8.8.8/' < /etc/resolv.conf > "$BASE_MNT/etc/resolv.conf" || exit
+	else
+		cp /etc/resolv.conf "$BASE_MNT/etc" || exit
+	fi
 
 	tell_status "setting base jail timezone (to hosts)"
 	cp /etc/localtime "$BASE_MNT/etc" || exit
