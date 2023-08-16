@@ -210,8 +210,12 @@ configure_base()
 	if [ ! -d "$BASE_MNT/usr/ports" ]; then echo_do mkdir "$BASE_MNT/usr/ports"; fi
 
 	tell_status "adding base jail resolv.conf"
-	echo_do \
-	cp /etc/resolv.conf "$BASE_MNT/etc"
+	if [ "$(sysrc -n local_unbound_enable)" = "YES" ]; then
+        	sed 's/127\.0\.0\.1/8.8.8.8/' < /etc/resolv.conf | echo_do tee "$BASE_MNT/etc/resolv.conf"
+	else
+		echo_do \
+		cp /etc/resolv.conf "$BASE_MNT/etc"
+	fi
 
 	tell_status "setting base jail timezone (to hosts)"
 	cp /etc/localtime "$BASE_MNT/etc"
