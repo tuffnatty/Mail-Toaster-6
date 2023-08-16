@@ -545,7 +545,7 @@ configure_letsencrypt()
 
 	local _HTTPDIR="$ZFS_DATA_MNT/nginxfront/htdocs"
 	local _acme="/usr/local/sbin/acme.sh --home /var/db/acme/.acme.sh"
-	local _hostnames="-d $TOASTER_HOSTNAME -d www.$TOASTER_HOSTNAME -d $TOASTER_HOSTNAME_SMTP"
+	local _hostnames="${LETSENCRYPT_HOSTNAMES:-"-d $TOASTER_HOSTNAME -d www.$TOASTER_HOSTNAME -d $TOASTER_HOSTNAME_SMTP"}"
 
 	$_acme --set-default-ca --server letsencrypt
 
