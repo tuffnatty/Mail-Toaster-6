@@ -168,7 +168,7 @@ configure_postfix()
 	stage_exec postconf -e "myorigin = $TOASTER_MAIL_DOMAIN"
 	stage_exec postconf -e 'smtp_use_tls=yes'
 	stage_exec postconf -e 'smtp_tls_security_level = may'
-	stage_exec postconf -e "mynetworks = ${JAIL_NET_PREFIX}.0${JAIL_NET_MASK}"
+	stage_exec postconf -e "mynetworks = ${JAIL_NET_PREFIX}.0${JAIL_NET_MASK} ${POSTFIX_ADD_MYNETWORKS}"
 
 	local _ssldir="/data/etc/ssl"
 	stage_exec postconf -e "smtpd_tls_cert_file = $_ssldir/certs/$TOASTER_MAIL_DOMAIN.pem"
