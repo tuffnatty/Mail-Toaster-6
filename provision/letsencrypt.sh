@@ -493,12 +493,14 @@ configure_letsencrypt()
 
 	local _HTTPDIR="$ZFS_DATA_MNT/webmail"
 	local _acme="/usr/local/sbin/acme.sh --home /var/db/acme/.acme.sh"
+	local _hostnames
+	_hostnames="$(printf ' -d %s' ${LETSENCRYPT_HOSTNAMES:-"$TOASTER_HOSTNAME"})"
 
 	$_acme --set-default-ca --server letsencrypt
 
-	if $_acme --issue --force -d "$TOASTER_HOSTNAME" -w "$_HTTPDIR"; then
+	if $_acme --issue --force $_hostnames -w "$_HTTPDIR"; then
 		update_haproxy_ssld
-		$_acme --deploy -d "$TOASTER_HOSTNAME" --deploy-hook mailtoaster
+		$_acme --deploy $_hostnames --deploy-hook mailtoaster
 	else
 		tell_status "TLS Certificate Issue failed"
 		exit 1
