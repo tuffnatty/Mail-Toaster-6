@@ -4,6 +4,9 @@ set -e
 
 . mail-toaster.sh
 
+service_config letsencrypt
+export LETSENCRYPT_HOSTNAMES="${LETSENCRYPT_HOSTNAMES:-"$TOASTER_HOSTNAME"}"
+
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
 export JAIL_FSTAB=""
@@ -576,14 +579,15 @@ configure_letsencrypt()
 
 	tell_status "configuring acme.sh"
 
-	local _HTTPDIR
+	local _HTTPDIR _hostnames
 	_HTTPDIR="$(get_jail_data webmail)/htdocs"
+	_hostnames="$(printf ' -d %s' $LETSENCRYPT_HOSTNAMES)"
 
 	acme.sh --set-default-ca --server letsencrypt
 
-	if acme.sh --issue --force -d "$TOASTER_HOSTNAME" -w "$_HTTPDIR"; then
+	if acme.sh --issue --force $_hostnames -w "$_HTTPDIR"; then
 		update_haproxy_ssld
-		acme.sh --deploy -d "$TOASTER_HOSTNAME" --deploy-hook mailtoaster
+		acme.sh --deploy $_hostnames --deploy-hook mailtoaster
 	else
 		tell_status "TLS Certificate Issue failed"
 		exit 1
