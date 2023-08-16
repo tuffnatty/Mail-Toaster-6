@@ -4,6 +4,9 @@ set -e -u
 
 . mail-toaster.sh
 
+service_config postfix
+export POSTFIX_ADD_MYNETWORKS="${POSTFIX_ADD_MYNETWORKS:-}"  # additional trusted network masks for SMTP
+
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
 export JAIL_FSTAB=""
@@ -143,7 +146,8 @@ configure_postfix_main_cf()
 	stage_exec postconf -e 'smtpd_tls_security_level = may'
 	stage_exec postconf -e 'smtpd_tls_auth_only = yes'
 	stage_exec postconf -e 'lmtp_tls_security_level = may'
-	stage_exec postconf -e "mynetworks = ${JAIL_NET_PREFIX}.0${JAIL_NET_MASK}"
+	stage_exec postconf -e "mynetworks = ${JAIL_NET_PREFIX}.0${JAIL_NET_MASK} ${POSTFIX_ADD_MYNETWORKS}"
+	stage_exec postconf -e "mua_client_restrictions = permit_mynetworks, permit_sasl_authenticated, reject"
 
 	if [ -f "$(get_jail_data postfix)/etc/sasl_passwd" ]; then
 		stage_exec postmap /data/etc/sasl_passwd
@@ -174,8 +178,9 @@ enable_postfix_submission()
 
 	tell_status "enabling postfix submission and submissions/smtps services"
 	awk '
-		/^#(submission|submissions|smtps)[[:space:]]/ { sub(/^#/, ""); in_block = 1; print; next }
-		in_block && /^#[[:space:]]+-o/                { sub(/^#/, ""); print; next }
+		/^#(submission|submissions|smtps)[[:space:]]/              { sub(/^#/, ""); in_block = 1; print; next }
+		in_block && /^#[[:space:]]+-o smtpd_client_restrictions=$/ { sub(/^#/, ""); print $0 "$mua_client_restrictions"; next }
+		in_block && /^#[[:space:]]+-o/                             { sub(/^#/, ""); print; next }
 		{ in_block = 0; print }
 	' "$_master_cf" > "$_master_cf.tmp" && mv "$_master_cf.tmp" "$_master_cf"
 }
@@ -257,6 +262,7 @@ test_postfix()
 	echo "it worked."
 }
 
+tell_settings POSTFIX
 base_snapshot_exists || exit 1
 create_staged_fs postfix
 start_staged_jail postfix
