@@ -323,11 +323,11 @@ teardown() {
 @test "dns - switch_host_resolver creates poststart script" {
   store_exec() { echo "EXEC:$1"; cat - > /dev/null; }
   run switch_host_resolver
-  assert_output --partial "EXEC:$ZFS_DATA_MNT/dns/etc/rc.d/poststart.sh"
+  assert_output --partial "EXEC:$(get_jail_etc dns)/rc.d/poststart.sh"
 }
 
 @test "dns - switch_host_resolver creates prestop script" {
   store_exec() { echo "EXEC:$1"; cat - > /dev/null; }
   run switch_host_resolver
-  assert_output --partial "EXEC:$ZFS_DATA_MNT/dns/etc/rc.d/prestop.sh"
+  assert_output --partial "EXEC:$(get_jail_etc dns)/rc.d/prestop.sh"
 }

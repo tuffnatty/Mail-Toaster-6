@@ -131,7 +131,7 @@ mta_rdr_setup() {
   mta_rdr_setup
   export TOASTER_MTA="haraka" TOASTER_MSA="haraka"
   configure_mta_pf_rdr haraka
-  run cat "$ZFS_DATA_MNT/haraka/etc/pf.conf.d/rdr.conf"
+  run cat "$(get_jail_etc haraka)/pf.conf.d/rdr.conf"
   assert_output --partial "port { 25 465 587 }"
 }
 
@@ -140,10 +140,10 @@ mta_rdr_setup() {
   export TOASTER_MTA="haraka" TOASTER_MSA="postfix"
   configure_mta_pf_rdr haraka
   configure_mta_pf_rdr postfix
-  run cat "$ZFS_DATA_MNT/haraka/etc/pf.conf.d/rdr.conf"
+  run cat "$(get_jail_etc haraka)/pf.conf.d/rdr.conf"
   assert_output --partial "port { 25 }"
   refute_output --partial "465"
-  run cat "$ZFS_DATA_MNT/postfix/etc/pf.conf.d/rdr.conf"
+  run cat "$(get_jail_etc postfix)/pf.conf.d/rdr.conf"
   assert_output --partial "port { 465 587 }"
   refute_output --partial "25"
 }
@@ -153,20 +153,20 @@ mta_rdr_setup() {
   export TOASTER_MTA="postfix" TOASTER_MSA="haraka"
   configure_mta_pf_rdr haraka
   configure_mta_pf_rdr postfix
-  run cat "$ZFS_DATA_MNT/haraka/etc/pf.conf.d/rdr.conf"
+  run cat "$(get_jail_etc haraka)/pf.conf.d/rdr.conf"
   assert_output --partial "port { 465 587 }"
-  run cat "$ZFS_DATA_MNT/postfix/etc/pf.conf.d/rdr.conf"
+  run cat "$(get_jail_etc postfix)/pf.conf.d/rdr.conf"
   assert_output --partial "port { 25 }"
 }
 
 @test "configure_mta_pf_rdr - removes stale rdr.conf when jail owns no ports" {
   mta_rdr_setup
   export TOASTER_MTA="postfix" TOASTER_MSA="postfix"
-  mkdir -p "$ZFS_DATA_MNT/haraka/etc/pf.conf.d"
-  echo "stale rule" > "$ZFS_DATA_MNT/haraka/etc/pf.conf.d/rdr.conf"
+  mkdir -p "$(get_jail_etc haraka)/pf.conf.d"
+  echo "stale rule" > "$(get_jail_etc haraka)/pf.conf.d/rdr.conf"
   run configure_mta_pf_rdr haraka
   assert_success
-  [ ! -f "$ZFS_DATA_MNT/haraka/etc/pf.conf.d/rdr.conf" ]
+  [ ! -f "$(get_jail_etc haraka)/pf.conf.d/rdr.conf" ]
 }
 
 @test "configure_mta_pf_rdr - writes no file when jail owns no ports" {
@@ -174,7 +174,7 @@ mta_rdr_setup() {
   export TOASTER_MTA="postfix" TOASTER_MSA="postfix"
   run configure_mta_pf_rdr haraka
   assert_success
-  [ ! -f "$ZFS_DATA_MNT/haraka/etc/pf.conf.d/rdr.conf" ]
+  [ ! -f "$(get_jail_etc haraka)/pf.conf.d/rdr.conf" ]
 }
 
 

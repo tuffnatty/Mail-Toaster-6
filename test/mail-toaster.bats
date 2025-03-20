@@ -91,8 +91,9 @@ setup() {
 @test "fstab_add_mount" {
   local tmpdir; tmpdir=$(mktemp -d)
   export ZFS_DATA_MNT="$tmpdir"
-  mkdir -p "$tmpdir/myjail/etc"
-  local fstab="$tmpdir/myjail/etc/fstab"
+  local fstab
+  fstab="$(get_jail_etc myjail)/fstab"
+  mkdir -p "$(dirname "$fstab")"
   touch "$fstab" "${fstab}.stage"
 
   # Mock tell_status
@@ -214,8 +215,9 @@ setup() {
 @test "fstab_add_mount - skips entry already present" {
   local tmpdir; tmpdir=$(mktemp -d)
   export ZFS_DATA_MNT="$tmpdir"
-  mkdir -p "$tmpdir/myjail/etc"
-  local fstab="$tmpdir/myjail/etc/fstab"
+  local fstab
+  fstab="$(get_jail_etc myjail)/fstab"
+  mkdir -p "$(dirname "$fstab")"
   printf '/src\t/dest\tnullfs\trw\t0\t0\n' > "$fstab"
   printf '/src\t/dest\tnullfs\trw\t0\t0\n' > "${fstab}.stage"
 
@@ -250,14 +252,14 @@ setup() {
   export STAGE_MNT="$tmpdir/jails/stage"
   export JAIL_FSTAB=""
   export TOASTER_USE_TMPFS=0
-  mkdir -p "$tmpdir/myjail/etc" "$tmpdir/stage/etc"
+  mkdir -p "$(get_jail_etc myjail)" "$(get_jail_etc stage)"
 
   tell_status() { :; }
 
   run install_fstab myjail
   assert_success
 
-  run grep "nullfs" "$tmpdir/myjail/etc/fstab"
+  run grep "nullfs" "$(get_jail_etc myjail)/fstab"
   assert_success
   assert_output --partial "$tmpdir/jails/myjail/data"
 
@@ -270,7 +272,7 @@ setup_tmpfs_fstab() {
   export STAGE_MNT="$1/jails/stage"
   export JAIL_FSTAB=""
   export TOASTER_USE_TMPFS=1
-  mkdir -p "$1/myjail/etc" "$1/stage/etc"
+  mkdir -p "$(get_jail_etc myjail)" "$(get_jail_etc stage)"
 
   tell_status() { :; }
 }
@@ -281,7 +283,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/myjail/tmp" "$tmpdir/myjail/etc/fstab"
+  run grep "$tmpdir/jails/myjail/tmp" "$(get_jail_etc myjail)/fstab"
   assert_success
   assert_output --partial "rw,mode=01777,noexec,nosuid"
 
@@ -294,7 +296,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/stage/tmp" "$tmpdir/myjail/etc/fstab.stage"
+  run grep "$tmpdir/jails/stage/tmp" "$(get_jail_etc myjail)/fstab.stage"
   assert_success
   refute_output --partial "noexec"
   assert_output --partial "rw,mode=01777,nosuid"
@@ -308,7 +310,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/stage/var/run" "$tmpdir/myjail/etc/fstab.stage"
+  run grep "$tmpdir/jails/stage/var/run" "$(get_jail_etc myjail)/fstab.stage"
   assert_success
   assert_output --partial "rw,mode=01755,noexec,nosuid"
 
@@ -321,7 +323,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/stage/tmp" "$tmpdir/stage/etc/fstab"
+  run grep "$tmpdir/jails/stage/tmp" "$(get_jail_etc stage)/fstab"
   assert_success
   refute_output --partial "noexec"
 
@@ -335,13 +337,13 @@ setup_tmpfs_fstab() {
   export STAGE_MNT="$tmpdir/jails/stage"
   export JAIL_FSTAB="/extra/src /extra/dest nullfs rw 0 0"
   export TOASTER_USE_TMPFS=0
-  mkdir -p "$tmpdir/myjail/etc" "$tmpdir/stage/etc"
+  mkdir -p "$(get_jail_etc myjail)" "$(get_jail_etc stage)"
 
   tell_status() { :; }
 
   install_fstab myjail
 
-  run grep "/extra/src" "$tmpdir/myjail/etc/fstab"
+  run grep "/extra/src" "$(get_jail_etc stage)/fstab"
   assert_success
 
   rm -rf "$tmpdir"

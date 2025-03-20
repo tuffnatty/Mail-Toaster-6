@@ -95,7 +95,8 @@ configure_mta_pf_rdr()
 		_ports="${_ports:+$_ports }465 587"
 	fi
 
-	local _rdr="$ZFS_DATA_MNT/$_jail/etc/pf.conf.d/rdr.conf"
+	local _rdr
+	_rdr="$(get_jail_etc "$_jail")/pf.conf.d/rdr.conf"
 
 	if [ -z "$_ports" ]; then
 		if [ -f "$_rdr" ]; then
@@ -166,6 +167,8 @@ get_jail_data()
 		echo "$ZFS_DATA_MNT/$1"
 	fi
 }
+
+get_jail_etc() { printf '%s' "$ZFS_DATA_MNT/etc/$1"; }
 
 jail_is_running()
 {
@@ -262,7 +265,7 @@ add_jail_conf()
 
 	tell_status "adding $1 to /etc/jail.conf"
 	echo "$1	{$(get_safe_jail_path "$1")
-		mount.fstab = \"$ZFS_DATA_MNT/$1/etc/fstab\";
+		mount.fstab = \"$(get_jail_etc "$1")/fstab\";
 		ip4.addr = $JAIL_NET_INTERFACE|${_jail_ip};
 		ip6.addr = $JAIL_NET_INTERFACE|$(get_jail_ip6 "$1");${JAIL_CONF_EXTRA}
 	}" | tee -a /etc/jail.conf
@@ -284,7 +287,7 @@ add_jail_conf_d()
 $(safe_jailname "$1")	{$(get_safe_jail_path "$1")
 		host.hostname = \$name;
 		path = "$_path";
-		mount.fstab = "$(get_jail_data "$1")/etc/fstab";
+		mount.fstab = "$(get_jail_etc "$1")/fstab";
 		devfs_ruleset=5;
 
 		ip4.addr = $JAIL_NET_INTERFACE|${_jail_ip};
@@ -293,8 +296,8 @@ $(safe_jailname "$1")	{$(get_safe_jail_path "$1")
 		exec.clean;
 		exec.start = "/bin/sh /etc/rc";
 		exec.stop = "/bin/sh /etc/rc.shutdown";
-		exec.created = "$(get_jail_data "$1")/etc/pf.conf.d/pfrule.sh load";
-		exec.poststop = "$(get_jail_data "$1")/etc/pf.conf.d/pfrule.sh unload";
+		exec.created = "$(get_jail_etc "$1")/pf.conf.d/pfrule.sh load";
+		exec.poststop = "$(get_jail_etc "$1")/pf.conf.d/pfrule.sh unload";
 	}
 EO_JAIL_RC
 }

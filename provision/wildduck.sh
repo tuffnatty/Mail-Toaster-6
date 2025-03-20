@@ -354,7 +354,8 @@ configure_zonemta_admin()
 
 configure_pf()
 {
-	local _pf_etc="$ZFS_DATA_MNT/wildduck/etc/pf.conf.d"
+	local _pf_etc
+	_pf_etc="$(get_jail_etc wildduck)/pf.conf.d"
 
 	get_public_ip4
 	get_public_ip6
