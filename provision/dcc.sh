@@ -63,7 +63,7 @@ configure_dcc()
 		-e "/^DCCIFD_ARGS/ s/-SList-ID\"/-SList-ID -p*,1025,$JAIL_NET_PREFIX.0\/24\"/" \
 		"$STAGE_MNT/var/db/dcc/dcc_conf"
 
-	_pf_etc="$ZFS_DATA_MNT/dcc/etc/pf.conf.d"
+	local _pf_etc; _pf_etc="$(get_jail_etc dcc)/pf.conf.d"
 
 	configure_pf_jail_table dcc
 

@@ -190,10 +190,10 @@ install_fstab()
 {
 	_data_mount="$ZFS_DATA_MNT/$1"
 	_jail_mount="$ZFS_JAIL_MNT/$1"
-	_fstab="$ZFS_DATA_MNT/$1/etc/fstab"
+	_fstab="$(get_jail_etc "$1")/fstab"
 
-	if [ ! -d "$_data_mount/etc" ]; then
-		mkdir "$_data_mount/etc" || exit 1
+	if [ ! -d "${_fstab%/*}" ]; then
+		mkdir "${_fstab%/*}" || exit 1
 	fi
 
 	tell_status "writing data mount to $_fstab"
@@ -226,10 +226,10 @@ install_fstab()
 	echo "/var/cache/pkg     $STAGE_MNT/var/cache/pkg   nullfs rw  0  0" | tee -a "$_fstab.stage"
 
 	# copy staged fstab into place for jail shutdown
-	if [ ! -d "$ZFS_DATA_MNT/stage/etc" ]; then
-		mkdir -p "$ZFS_DATA_MNT/stage/etc" || exit 1
+	if [ ! -d "$(get_jail_etc stage)" ]; then
+		mkdir -p "$(get_jail_etc stage)" || exit 1
 	fi
-	cp "$_fstab.stage" "$ZFS_DATA_MNT/stage/etc/fstab" || exit 1
+	cp "$_fstab.stage" "$(get_jail_etc stage)/fstab" || exit 1
 }
 
 fstab_add_mount() {
@@ -243,7 +243,7 @@ fstab_add_mount() {
 	local mount_point="$3"
 	local fs_type="${4:-nullfs}"
 	local opts="${5:-rw}"
-	local fstab="$ZFS_DATA_MNT/$jail_name/etc/fstab"
+	local fstab; fstab="$(get_jail_etc "$jail_name")/fstab"
 
 	for _file in "$fstab" "${fstab}.stage"; do
 		if ! grep -qs "^$fs_path" "$_file"; then
@@ -252,6 +252,29 @@ fstab_add_mount() {
 				tee -a "$_file"
 		fi
 	done
+}
+
+migrate_jail_etc_first_part()
+{
+	if [ ! -d "$(get_jail_etc "$1")/pf.conf.d" ] && [ -d "$ZFS_DATA_MNT/$1/etc/pf.conf.d" ]; then
+		tell_status "Migrating $ZFS_DATA_MNT/$1/etc/pf.conf.d to $(get_jail_etc "$1")/pf.conf.d"
+		# copy here, rm in promote_staged_jail() after the production jail is stopped
+		cp -a "$ZFS_DATA_MNT/$1/etc/pf.conf.d" "$(get_jail_etc "$1")" || exit 1
+	fi
+}
+
+migrate_jail_etc_finish()
+{
+	local _old_etc="$ZFS_DATA_MNT/$1/etc"
+	if [ -f "$_old_etc/fstab" ] || [ -f "$_old_etc/fstab.stage" ]; then
+		tell_status "$_old_etc/fstab has migrated to $(get_jail_etc "$1")/fstab"
+		rm -f "$_old_etc/fstab" "$_old_etc/fstab.stage"
+	fi
+	if [ -d "$_old_etc/pf.conf.d" ]; then
+		tell_status "$_old_etc/pf.conf.d has migrated to $(get_jail_etc "$1")/pf.conf.d"
+		rm -fr "$_old_etc/pf.conf.d"
+	fi
+
 }
 
 create_staged_fs()
@@ -278,7 +301,9 @@ create_staged_fs()
 	echo "MASQUERADE $1@$TOASTER_MAIL_DOMAIN" >> "$STAGE_MNT/etc/dma/dma.conf"
 
 	zfs_create_fs "$ZFS_DATA_VOL/$1" "$ZFS_DATA_MNT/$1"
+	zfs_create_fs "$ZFS_DATA_VOL/etc"
 	install_fstab "$1"
+	migrate_jail_etc_first_part "$1"
 	install_pfrule "$1"
 	echo
 }
@@ -289,7 +314,7 @@ start_staged_jail()
 	local _path=${2:-"$STAGE_MNT"}
 	local _fstab
 
-	_fstab="$(get_jail_data "$_name")/etc/fstab"
+	_fstab="$(get_jail_etc "$_name")/fstab"
 	if [ "$_name" != "base" ]; then _fstab="$_fstab.stage"; fi
 
 	tell_status "stage jail $_name startup"
@@ -378,6 +403,10 @@ promote_staged_jail()
 
 	rename_active_to_last "$1"
 	rename_ready_to_active "$1"
+
+	# Now the old jail is stopped, and we may complete the etc migration
+	migrate_jail_etc_finish "$1"
+
 	add_jail_conf "$1"
 	#add_automount "$1"
 

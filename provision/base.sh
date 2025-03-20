@@ -64,8 +64,6 @@ install_freebsd()
 			stage_fbsd_package base "$BASE_MNT"
 			;;
 	esac
-
-	configure_fstab
 }
 
 configure_syslog()
@@ -192,11 +190,8 @@ EO_MAKE_CONF
 }
 
 configure_fstab() {
-	local _sub_dir=${1:-""}
-	local _etc_path="$BASE_MNT/${_sub_dir}etc"
-	if [ ! -d "$_etc_path" ]; then mkdir -p "$_etc_path"; fi
-
-	store_config "$_etc_path/fstab" "overwrite" <<EO_FSTAB
+	zfs_create_fs "$ZFS_DATA_VOL/etc"
+	store_config "$(get_jail_etc base)/fstab" "overwrite" <<EO_FSTAB
 # Device                Mountpoint      FStype  Options         Dump    Pass#
 devfs                   $BASE_MNT/dev  devfs   rw              0       0
 EO_FSTAB
@@ -234,7 +229,7 @@ configure_base()
 	configure_bourne_shell "$BASE_MNT"
 	configure_csh_shell "$BASE_MNT"
 	touch "$BASE_MNT/etc/fstab"
-	configure_fstab "data/"
+	configure_fstab
 	install_pfrule base
 }
 
