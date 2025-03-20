@@ -190,10 +190,10 @@ install_fstab()
 {
 	_data_mount="$ZFS_DATA_MNT/$1"
 	_jail_mount="$ZFS_JAIL_MNT/$1"
-	_fstab="$ZFS_DATA_MNT/$1/etc/fstab"
+	_fstab="$(get_jail_etc "$1")/fstab"
 
-	if [ ! -d "$_data_mount/etc" ]; then
-		mkdir "$_data_mount/etc" || exit 1
+	if [ ! -d "${_fstab%/*}" ]; then
+		mkdir "${_fstab%/*}" || exit 1
 	fi
 
 	tell_status "writing data mount to $_fstab"
@@ -226,10 +226,10 @@ install_fstab()
 	echo "/var/cache/pkg     $STAGE_MNT/var/cache/pkg   nullfs rw  0  0" | tee -a "$_fstab.stage"
 
 	# copy staged fstab into place for jail shutdown
-	if [ ! -d "$ZFS_DATA_MNT/stage/etc" ]; then
-		mkdir -p "$ZFS_DATA_MNT/stage/etc" || exit 1
+	if [ ! -d "$(get_jail_etc stage)" ]; then
+		mkdir -p "$(get_jail_etc stage)" || exit 1
 	fi
-	cp "$_fstab.stage" "$ZFS_DATA_MNT/stage/etc/fstab" || exit 1
+	cp "$_fstab.stage" "$(get_jail_etc stage)/fstab" || exit 1
 }
 
 fstab_add_mount() {
@@ -243,7 +243,7 @@ fstab_add_mount() {
 	local mount_point="$3"
 	local fs_type="${4:-nullfs}"
 	local opts="${5:-rw}"
-	local fstab="$ZFS_DATA_MNT/$jail_name/etc/fstab"
+	local fstab="$(get_jail_etc "$jail_name")/fstab"
 
 	for _file in "$fstab" "${fstab}.stage"; do
 		if ! grep -qs "^$fs_path" "$_file"; then
@@ -282,6 +282,7 @@ create_staged_fs()
 	echo "MASQUERADE $1@$TOASTER_MAIL_DOMAIN" >> "$STAGE_MNT/etc/dma/dma.conf"
 
 	zfs_create_fs "$ZFS_DATA_VOL/$1" "$ZFS_DATA_MNT/$1"
+	zfs_create_fs "$ZFS_DATA_VOL/etc"
 	install_fstab "$1"
 	install_pfrule "$1"
 	echo
@@ -293,7 +294,7 @@ start_staged_jail()
 	local _path=${2:-"$STAGE_MNT"}
 	local _fstab
 
-	_fstab="$(get_jail_data "$_name")/etc/fstab"
+	_fstab="$(get_jail_etc $_name)/fstab"
 	if [ "$_name" != "base" ]; then _fstab="$_fstab.stage"; fi
 
 	tell_status "stage jail $_name startup"

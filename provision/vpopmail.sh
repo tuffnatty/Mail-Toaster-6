@@ -397,7 +397,7 @@ migrate_vpopmail_home()
 	# fi
 
 	# if [ -d "$ZFS_DATA_MNT/vpopmail/home/etc/pf.conf.d" ]; then
-	# 	mv "$ZFS_DATA_MNT/vpopmail/home/etc/pf.conf.d" "$ZFS_DATA_MNT/vpopmail/etc/"
+	# 	mv "$ZFS_DATA_MNT/vpopmail/home/etc/pf.conf.d" "$(get_jail_etc vpopmail)/"
 	# fi
 
 	# # TODO: patch fstab mounts in /etc/jail.conf
