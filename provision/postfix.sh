@@ -283,7 +283,7 @@ configure_postfix()
 	configure_opendkim
 
 	preserve_file postfix '/etc/mail/aliases'
-	stage_exec /usr/local/bin/newaliases
+	stage_exec /usr/local/sbin/postalias /etc/mail/aliases
 
 	stage_exec install -m 0644 /usr/local/share/postfix/mailer.conf.postfix /data/etc/mailer.conf
 
