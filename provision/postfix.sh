@@ -6,7 +6,7 @@ set -e -u
 
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
-export JAIL_FSTAB="$ZFS_DATA_MNT/$TOASTER_MAILDIR $ZFS_JAIL_MNT/postfix/data/$TOASTER_MAILDIR nullfs rw 0 2"
+export JAIL_FSTAB="$ZFS_DATA_MNT/$TOASTER_MAILDIR $ZFS_JAIL_MNT/postfix/data/$TOASTER_MAILDIR nullfs rw,nosuid 0 2"
 
 mt6-include mysql
 
