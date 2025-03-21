@@ -24,7 +24,18 @@ install_php()
 		_ports="$_ports php$_version-$m"
 	done
 
-	stage_pkg_install $_ports || exit
+	if [ "$_version" = "74" ]; then
+		# /usr/ports should have lang/php74
+		stage_pkg_install portconfig pkgconf autoconf automake pcre2 gmake libxml2
+		stage_make_conf php74_SET 'lang_php74_SET=FPM'
+		stage_make_conf php74_UNSET 'lang_php74_UNSET=CGI CLI EMBED'
+		stage_port_install lang/php74
+		for _port in ${_ports#php74 }; do
+			stage_port_install "$(cd /usr/ports && echo */"$_port")"
+		done
+	else
+		stage_pkg_install $_ports || exit
+	fi
 	install_php_newsyslog
 }
 
@@ -101,17 +112,27 @@ configure_php()
 	configure_php_fpm "$1"
 }
 
+php_fpm_name() {
+	# before 8.0, the service is php-fpm; after 8.0 it's php_fpm
+	if [ -x "$STAGE_MNT/usr/local/etc/rc.d/php_fpm" ]; then echo php_fpm; else echo php-fpm; fi
+}
+
+php_fpm_process_name() {
+	echo php-fpm
+}
+
 start_php_fpm()
 {
 	tell_status "starting PHP FPM"
 	stage_sysrc php_fpm_enable=YES
-	echo_stage_exec service php-fpm start || echo_stage_exec service php-fpm restart
+	local _php_fpm="$(php_fpm_name)"
+	echo_stage_exec service "$_php_fpm" start || echo_stage_exec service "$_php_fpm" restart
 }
 
 test_php_fpm()
 {
 	tell_status "testing PHP FPM (FastCGI Process Manager) is running"
-	stage_test_running php-fpm
+	stage_test_running "$(php_fpm_process_name)"
 
 	if [ "$PHP_LISTEN_MODE" = "tcp" ]; then
 		tell_status "testing PHP FPM is listening"
