@@ -46,10 +46,13 @@ install_dcc_port_options()
 
 install_dcc()
 {
+	local build_deps_installed
 	install_dcc_port_options
 
 	tell_status "install dcc"
+	stage_pkg_install_and_collect_build_deps build_deps_installed
 	stage_port_install mail/dcc-dccd
+	pkg -j stage remove -qy $build_deps_installed
 
 	install_dcc_cleanup
 }
