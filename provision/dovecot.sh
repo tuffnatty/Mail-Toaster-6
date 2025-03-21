@@ -6,7 +6,7 @@ set -e -u
 
 export JAIL_START_EXTRA="allow.sysvipc=1"
 export JAIL_CONF_EXTRA=""
-export JAIL_FSTAB="$ZFS_DATA_MNT/$TOASTER_MAILDIR $ZFS_JAIL_MNT/dovecot/data/$TOASTER_MAILDIR nullfs rw 0 0"
+export JAIL_FSTAB="$ZFS_DATA_MNT/$TOASTER_MAILDIR $ZFS_JAIL_MNT/dovecot/data/$TOASTER_MAILDIR nullfs rw,nosuid 0 0"
 
 mt6-include vpopmail
 mt6-include mua
