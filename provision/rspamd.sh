@@ -249,8 +249,7 @@ EO_WORKER
 
 configure_controller()
 {
-	_pass=$(jexec vpopmail /usr/local/vpopmail/bin/vuserinfo -C "postmaster@${TOASTER_MAIL_DOMAIN}")
-
+	local _pass="$TOASTER_MYSQL_PASS"
 	store_config "$RSPAMD_ETC/local.d/worker-controller.inc" <<EO_CONTROLLER
 password = "$(jexec stage rspamadm pw -p "$_pass")";
 secure_ip = $(get_jail_ip dovecot);
