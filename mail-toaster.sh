@@ -394,15 +394,51 @@ stage_pkg_install()
 	pkg -j "$SAFE_NAME" install -y "$@"
 }
 
+diffnew() { diff "$@" | awk '/^>/ { print substr($0, 2) }'; }
+
+stage_pkg_install_and_collect() {
+	local _var_name="$1"
+	shift
+	if [ -z "$1" ]; then
+		setvar "$_var_name" ""
+		return 0
+	fi
+	pkg -j "$SAFE_NAME" info -q > /tmp/mt6-before-build-depends.tmp
+	stage_pkg_install "$@"
+	setvar "$_var_name" "$(pkg -j "$SAFE_NAME" info -q | diffnew /tmp/mt6-before-build-depends.tmp -)"
+}
+
+missing_packages()
+{
+	for depend; do pkg -j "$SAFE_NAME" info -q | grep -q "${depend#*/}-[0-9]" || echo "$depend"; done
+}
+
 stage_port_install()
 {
 	# $1 is the port directory (eg: mail/dovecot)
+	local _portdir="/usr/ports/$1"
 
-	stage_pkg_install pkgconf portconfig
+	tell_status "Install runtime dependencies via pkg"
+	local _run_depends _missing_run_depends
+	_run_depends="$(jexec "$SAFE_NAME" make -C "$_portdir" run-depends-list | sed 's,^/usr/ports/,,' | sort -n)"
+	_missing_run_depends="$(missing_packages $_run_depends)"
+	[ -z "$_missing_run_depends" ] || stage_pkg_install $_missing_run_depends
 
+	tell_status "Install missing build dependencies via pkg"
+	local _build_depends _build_depends_installed _missing_build_depends
+	_build_depends="$(jexec "$SAFE_NAME" make -C "$_portdir" build-depends-list | sed 's,^/usr/ports/,,' | sort -n)"
+	_missing_build_depends="$(missing_packages $_build_depends)"
+
+	stage_pkg_install_and_collect _build_depends_installed $_missing_build_depends pkgconf portconfig
+
+	tell_status "Install $1 via ports"
 	stage_exec make -C "/usr/ports/$1" reinstall clean || return 1
 
 	tell_status "port $1 installed"
+	if [ -n "$_build_depends_installed" ]; then
+		tell_status "Removing $1 build dependencies"
+		pkg -j "$SAFE_NAME" remove -qy $_build_depends_installed
+	fi
 }
 
 stage_sysrc()
