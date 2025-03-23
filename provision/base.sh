@@ -368,6 +368,8 @@ zfs_snapshot_exists "$BASE_SNAP" && exit 0
 stop_jail stage
 create_base_filesystem
 install_freebsd
+# compact as possible, but if we touch /usr/share/doc, baseaudit complains
+echo_do rm "$BASE_MNT/usr/local/bin/pkg-static" || true
 freebsd_update
 configure_base
 start_staged_jail base "$BASE_MNT"
