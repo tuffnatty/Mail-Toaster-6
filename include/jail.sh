@@ -105,7 +105,8 @@ jail_conf_header()
 exec.start = "/bin/sh /etc/rc";
 exec.stop = "/bin/sh /etc/rc.shutdown";
 exec.clean;
-devfs_ruleset=5;
+#devfs_ruleset=5;
+devfs_ruleset=4;  # 5 gives vnet and non-vnet jails unneeded /dev/pf access
 path = "$_path";
 interface = $JAIL_NET_INTERFACE;
 host.hostname = \$name;
@@ -253,7 +254,7 @@ $(safe_jailname "$1")	{$(get_safe_jail_path "$1")
 		host.hostname = \$name;
 		path = "$_path";
 		mount.fstab = "$(get_jail_etc "$1")/fstab";
-		devfs_ruleset=5;
+		devfs_ruleset=4;
 
 		ip4.addr = $JAIL_NET_INTERFACE|${_jail_ip};
 		${_IP6}${JAIL_CONF_EXTRA}
