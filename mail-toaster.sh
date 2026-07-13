@@ -331,7 +331,7 @@ start_staged_jail()
 		exec.stop="/bin/sh /etc/rc.shutdown" \
 		mount.devfs \
 		$_mount \
-		devfs_ruleset=5 \
+		devfs_ruleset=4 \
 		$JAIL_START_EXTRA
 
 	enable_bsd_cache
