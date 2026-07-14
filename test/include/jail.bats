@@ -59,7 +59,7 @@ setup() {
 
 @test "jail_conf_header - dns" {
   run jail_conf_header dns
-  assert_output --partial "path = \"/jails/dns\";"
+  assert_output --partial "path = \"/jails/\$name\";"
   assert_output --partial "interface = lo1;"
 }
 
