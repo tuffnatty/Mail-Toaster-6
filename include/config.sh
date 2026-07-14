@@ -143,6 +143,7 @@ export ZFS_SNAPSHOT_DATA="0"  # set to 1 to snapshot modified /data volumes befo
 export ZFS_SNAPSHOT_PROVISIONED="0"  # set to 1 to snapshot every freshly provisioned jail
 export TOASTER_EDITOR="vim"
 export TOASTER_EDITOR_PORT="vim-tiny"
+export TOASTER_MARIADB="0"
 export TOASTER_MSA="haraka"
 export TOASTER_MTA="haraka"
 export TOASTER_MYSQL="1"
