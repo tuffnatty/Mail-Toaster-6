@@ -98,7 +98,7 @@ get_reverse_ip6()
 
 jail_conf_header()
 {
-	local _path="$ZFS_JAIL_MNT/$1"
+	local _path="$ZFS_JAIL_MNT/\$name"
 	if [ "$1" = "base" ]; then _path="$BASE_MNT"; fi
 
 	cat <<EO_JAIL_CONF_HEAD
