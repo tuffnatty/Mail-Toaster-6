@@ -459,3 +459,41 @@ pkg_cache_root() {
   run cat "$_root/etc/freebsd-update.conf"
   assert_output "ServerName freebsd-update"
 }
+
+@test "lstrip / //abc" {
+  run lstrip / //abc
+  assert_output "abc"
+}
+
+@test "lstrip / ''" {
+  run lstrip / ""
+  assert_output ""
+}
+
+@test "rstrip / abc//" {
+  run rstrip / abc//
+  assert_output "abc"
+}
+
+@test "rstrip / ''" {
+  run rstrip / ""
+  assert_output ""
+}
+
+@test "dirname" {
+  for s in \
+    '' \
+    ' ' \
+    / \
+    // \
+    //etc/ \
+    //etc//rc.d//anything \
+    ../a \
+    ./a \
+    a/../q
+  do
+    run dirname "$s"
+    assert_success
+    assert_output "$(command dirname "$s")"
+  done
+}
