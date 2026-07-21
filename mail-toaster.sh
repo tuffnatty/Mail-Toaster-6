@@ -172,7 +172,15 @@ stage_unmount()
 	# an empty STAGE_MNT would match every mountpoint on the host
 	[ -n "$STAGE_MNT" ] || fatal_err "stage_unmount: STAGE_MNT is unset"
 
-	for _fs in $(mount | awk -v p="$STAGE_MNT/" 'index($3, p) == 1 { print $3 }' | sort -ru); do
+	local _mnt="$STAGE_MNT"
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		[ -e "$STAGE_MNT" ] || return 0
+
+		_mnt="$(readlink -f "$STAGE_MNT")"
+		[ -n "$_mnt" ] || fatal_err "readlink -f \"$STAGE_MNT\" returned nothing"
+	fi
+
+	for _fs in $(mount | awk -v p="$_mnt/" 'index($3, p) == 1 { print $3 }' | sort -ru); do
 		echo_do \
 		umount "$_fs"
 	done
@@ -183,6 +191,11 @@ cleanup_staged_fs()
 	tell_status "stage cleanup"
 	stop_jail stage
 	stage_unmount
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		zfs_destroy_fs "$(readlink -f "$ZFS_JAIL_MNT/stage")" -fr  # because of snapshots
+		[ ! -L "$ZFS_JAIL_MNT/stage" ] || echo_do rm "$ZFS_JAIL_MNT/stage"
+		return
+	fi
 	zfs_destroy_fs "$ZFS_JAIL_VOL/stage" -fr  # because of snapshots
 }
 
@@ -263,9 +276,15 @@ create_staged_fs()
 	PROVISION_TIMESTAMP="$(date -uIminutes)"
 	PROVISION_TIMESTAMP="${PROVISION_TIMESTAMP%+*}"
 
-	echo_do \
-	zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
-
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		local _name="$1.$PROVISION_TIMESTAMP"
+		echo_do \
+		zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/$_name" || exit 1
+		ln -sfh "$_name" "$ZFS_JAIL_MNT/stage"
+	else
+		echo_do \
+		zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
+	fi
 	if [ ! -d "$ZFS_JAIL_MNT/stage/data" ]; then
 		echo_do \
 		mkdir "$ZFS_JAIL_MNT/stage/data" || exit 1
@@ -382,9 +401,12 @@ promote_staged_jail()
 	rename_ready_to_active "$1"
 	add_jail_conf "$1" "${2:-""}"
 	#add_automount "$1"
+
+	local _name="$1"
+	[ "${ZFS_REPLICATION_FRIENDLY:-0}" = 0 ] || _name="$(readlink "$ZFS_JAIL_MNT/$1")"
 	[ "$ZFS_SNAPSHOT_PROVISIONED" = 0 ] ||
 		echo_do \
-		zfs snapshot "$ZFS_JAIL_VOL/$1@provisioned"
+		zfs snapshot "$ZFS_JAIL_VOL/$_name@provisioned"
 
 	tell_status "service jail start $1"
 	service jail start "$1" || exit 1

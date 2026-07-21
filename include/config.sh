@@ -25,6 +25,7 @@ mt6_defaults()
 	export ZFS_BHYVE_VOL="${ZFS_BHYVE_VOL:-$ZFS_VOL}"
 	export ZFS_JAIL_MNT=${ZFS_JAIL_MNT:-"/jails"}
 	export ZFS_DATA_MNT=${ZFS_DATA_MNT:-"/data"}
+	export ZFS_REPLICATION_FRIENDLY=${ZFS_REPLICATION_FRIENDLY:-"0"}
 	export ZFS_SNAPSHOT_DATA=${ZFS_SNAPSHOT_DATA:-"0"}
 	export ZFS_SNAPSHOT_PROVISIONED="${ZFS_SNAPSHOT_PROVISIONED:-0}"
 	export FBSD_MIRROR=${FBSD_MIRROR:-"ftp://ftp.freebsd.org"}
@@ -137,6 +138,7 @@ export JAIL_VNET_PREFIX="172.16.16"
 export ZFS_VOL="zroot"
 export ZFS_JAIL_MNT="/jails"
 export ZFS_DATA_MNT="/data"
+export ZFS_REPLICATION_FRIENDLY="0"  # set to 1 to disable zfs renames and use symlinks instead
 export ZFS_SNAPSHOT_DATA="0"  # set to 1 to snapshot modified /data volumes before provisioning
 export ZFS_SNAPSHOT_PROVISIONED="0"  # set to 1 to snapshot every freshly provisioned jail
 export TOASTER_EDITOR="vim"

@@ -67,6 +67,9 @@ zfs_destroy_fs()
 	local _fs="$1"
 	local _flags=${2-}
 
+	# support specifying a mountpoint
+	case "$_fs" in /*) _fs="$(mount -t zfs | awk -v fs="$_fs" '$3 == fs { print $1 }')" ;; esac
+
 	if ! zfs_filesystem_exists "$_fs"; then return; fi
 
 	if [ -n "$_flags" ]; then
@@ -95,6 +98,12 @@ rename_staged_to_ready()
 	# remove stages that failed promotion
 	zfs_destroy_fs "$_new_vol"
 
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		local _new_mnt="$ZFS_JAIL_MNT/${1}.ready"
+		echo_do mv -fh "$ZFS_JAIL_MNT/stage" "$_new_mnt"
+		return
+	fi
+
 	# get the wait over with before shutting down production jail
 	local _tries=0
 	local _zfs_rename="zfs rename $ZFS_JAIL_VOL/stage $_new_vol"
@@ -117,8 +126,17 @@ rename_active_to_last()
 	local LAST="$ACTIVE.last"
 
 	zfs_destroy_fs "$LAST" -r  # because of snapshots
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		local ACTIVE_MNT="$ZFS_JAIL_MNT/$1"
+		[ ! -L "$ACTIVE_MNT.last" ] || echo_do rm "$ACTIVE_MNT.last"
+	fi
 
-	if ! zfs_filesystem_exists "$ACTIVE"; then return; fi
+	if ! zfs_filesystem_exists "$ACTIVE"; then
+		if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ] && zfs_mountpoint_exists "$(readlink -f "$ACTIVE_MNT")"; then
+			echo_do mv -fh "$ACTIVE_MNT" "$ACTIVE_MNT.last"
+		fi
+		return
+	fi
 
 	local _tries=0
 	local _zfs_rename="zfs rename $ACTIVE $LAST"
@@ -137,7 +155,11 @@ rename_active_to_last()
 
 rename_ready_to_active()
 {
-	echo "zfs rename $ZFS_JAIL_VOL/${1}.ready $ZFS_JAIL_VOL/$1"
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		echo_do mv -fh "$ZFS_JAIL_MNT/${1}.ready" "$ZFS_JAIL_MNT/$1" || exit 1
+		return
+	fi
+
 	echo_do \
 	zfs rename "$ZFS_JAIL_VOL/${1}.ready" "$ZFS_JAIL_VOL/$1" || exit 1
 }
