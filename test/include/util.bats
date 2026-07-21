@@ -4,6 +4,7 @@ setup() {
   load '../test_helper/bats-support/load'
   load '../test_helper/bats-assert/load'
   load '../../include/util.sh'
+  function setvar { eval "$1"='"$2"'; }  # bash has no setvar
 }
 
 @test "mt6_version - outputs 8-digit date" {
@@ -49,6 +50,42 @@ setup() {
 @test "dec_to_hex - 16" {
   run dec_to_hex 16
   assert_output "0010"
+}
+
+@test "overwrite_if_differs - new file" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  local tmpfile="$tmpdir/new_file"
+
+  echo "hello" | overwrite_if_differs "$tmpfile"
+
+  run cat "$tmpfile"
+  assert_output "hello"
+
+  rm -rf "$tmpdir"
+}
+
+@test "overwrite_if_differs - preserve identical" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  local tmpfile="$tmpdir/new_file"
+
+  echo "hello" > "$tmpfile"
+  run overwrite_if_differs "$tmpfile" verbose <<<"hello"
+  assert_output --regexp ' has not changed'
+
+  rm -rf "$tmpdir"
+}
+
+@test "overwrite_if_differs - overwrite different" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  local tmpfile="$tmpdir/new_file"
+
+  echo "hello1" > "$tmpfile"
+  echo "hello2" | overwrite_if_differs "$tmpfile"
+
+  run cat "$tmpfile"
+  assert_output "hello2"
+
+  rm -rf "$tmpdir"
 }
 
 @test "store_config - new file" {
