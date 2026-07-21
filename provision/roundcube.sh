@@ -157,6 +157,14 @@ EO_RC_LOCAL
 		rewrite ^/roundcube/(.*)\$ /\$1 last;
 		location = / { rewrite ^ /index.php last; }
 
+		location ~ ^/(bin|SQL|config|temp|logs)\$ {
+			deny all;
+		}
+
+		location ~ \\.inc\$ {
+			deny all;
+		}
+
 		# for performance, robustness, and security, bypass static.php for assets
 		location ~* ^/static.php/(?<asset_path>.+\.(?:css|gif|htc|ico|js|jpe?g|png|swf|webp|ttf|svg|woff|woff2|eot))\$ {
 			alias /usr/local/www/roundcube/\$asset_path;
