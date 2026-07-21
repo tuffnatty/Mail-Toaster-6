@@ -263,4 +263,31 @@ EO_PKG_MT6_BASE
 		"$_root/etc/freebsd-update.conf"
 }
 
+dirname() {
+	# compatible with dirname(1) but several orders of magnitude faster
+	[ $# -gt 0 ] || return 1
+	local _arg _s1 _s2
+	for _arg; do
+		_s1="$(rstrip / "$_arg")"
+		_s2="$(rstrip / "${_s1%/*}")"
+		case "$_arg" in
+			/*)	[ -n "$(lstrip / "$_s2")" ] || _s2=/ ;;
+			*)	[ -n "${_s2#"$_s1"}" ] || _s2=. ;;
+		esac
+		printf '%s\n' "$_s2"
+	done
+}
+
+lstrip() {
+	local _s="$2" _next
+	while { _next="${_s#"$1"}"; [ "$_next" != "$_s" ]; } do _s="$_next"; done
+	printf '%s' "$_s"
+}
+
+rstrip() {
+	local _s="$2" _next
+	while { _next="${_s%"$1"}"; [ "$_next" != "$_s" ]; } do _s="$_next"; done
+	printf '%s' "$_s"
+}
+
 sed_replacement_quote() { printf "%s" "$1" | sed -E 's,([&\\/]),\\\1,g'; }
