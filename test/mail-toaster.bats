@@ -401,6 +401,7 @@ unmounted_paths() {
 }
 
 @test "stage_unmount unmounts every stage mount, deepest first, once each" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
@@ -417,14 +418,15 @@ unmounted_paths() {
   # 'stage' as a substring elsewhere in the mount line is not a stage mount
   refute_line "${STAGE_MNT}-other/data"
   refute_line "$ZFS_JAIL_MNT/dovecot/stagefiles"
+
+  rm -fr "$STAGE_MNT"
 }
 
-@test "stage_unmount refuses to run with STAGE_MNT unset" {
+@test "stage_unmount is no-op with STAGE_MNT unset" {
   fake_mount
   STAGE_MNT=
   run stage_unmount
-  assert_failure
-  assert_output --partial "STAGE_MNT is unset"
+  assert_output --regexp "staged FS mountpoint  does not exist"
   refute_output --partial "umount /"
 }
 
