@@ -578,6 +578,11 @@ stage_enable_newsyslog()
 	sed_inplace \
 		-e '/^#0.*newsyslog/ s/^#0/0/' \
 		"$STAGE_MNT/etc/crontab"
+
+	[ "$(freebsd_major "$STAGE_MNT")" -lt 15 ] ||
+	store_config "$STAGE_MNT/usr/local/etc/newsyslog.conf.d/MT6.conf" <<EO_NEWSYSLOG
+<compress>$NEWSYSLOG_COMPRESSION_METHOD
+EO_NEWSYSLOG
 }
 
 unmount_data()
