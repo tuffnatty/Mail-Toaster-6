@@ -296,7 +296,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/stage/tmp" "$(get_jail_etc myjail)/fstab.stage"
+  run grep "$tmpdir/jails/stage/tmp" "$(get_jail_etc stage)/fstab"
   assert_success
   refute_output --partial "noexec"
   assert_output --partial "rw,mode=01777,nosuid"
@@ -310,7 +310,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/stage/var/run" "$(get_jail_etc myjail)/fstab.stage"
+  run grep "$tmpdir/jails/stage/var/run" "$(get_jail_etc stage)/fstab"
   assert_success
   assert_output --partial "rw,mode=01755,noexec,nosuid"
 
