@@ -69,6 +69,8 @@ install_pfrule()
 
 	# disable updates
 	#mt6-fetch contrib pfrule.sh
+	# minimize FS diff
+	[ -d "$_pfdir" ] ||
 	echo_do \
 	install -d -m 0755 "$_pfdir"
 	echo_do \

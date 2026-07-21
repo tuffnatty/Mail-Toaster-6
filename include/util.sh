@@ -90,11 +90,30 @@ backup_config()
 	cp -p "$1" "$_backup"
 }
 
+overwrite_if_differs()
+{
+	# the purpose of the function is to keep zfs written=0 when nothing is actually changed
+	local _message="${2:+"installing $1"}"
+	if [ -f "$1" ]; then
+		# calling cmp or diff would report files differing only in ending LF as different
+		local _data; _data="$(cat; printf EOF)"; _data="${_data%EOF}"  # $(cat) would eat trailing LF
+		if [ "$(printf '%s' "$_data")" = "$(cat "$1")" ]; then
+			[ -z "$_message" ] || tell_status "$1 has not changed"
+			return
+		fi
+		[ -z "$_message" ] || tell_status "$_message"
+		printf '%s' "$_data" | echo_do tee "$1" >/dev/null
+	else
+		[ -z "$_message" ] || tell_status "$_message"
+		echo_do tee "$1" >/dev/null
+	fi
+}
+
 store_config()
 {
 	# $1 - path to config file, $2 - operation, STDIN is file contents
 	local _operation=${2:-""}
-	local _shadow="$1.mt6"
+	local _shadow="$1.mt6" _data _shadow_data
 
 	# "update" reinstalls over a config that still matches what we generated
 	# last run, so an untouched file picks up template changes while an edited
@@ -102,7 +121,7 @@ store_config()
 	# question becomes "does it match what we are about to write", which is a
 	# different and far less useful one.
 	local _pristine=""
-	if [ -f "$1" ] && [ -f "$_shadow" ] && cmp -s "$1" "$_shadow"; then
+	if [ -f "$1" ] && [ -f "$_shadow" ] && [ "$(cat "$1")" = "$(cat "$_shadow")" ]; then
 		_pristine=1
 	fi
 
@@ -111,15 +130,11 @@ store_config()
 		mkdir -p "$(dirname "$1")"
 	fi
 
-	# A redirect onto an existing file keeps that file's mode, so a shadow left
-	# at 600 by an earlier run would install $1 at 600 too. Recreate it instead,
-	# so the mode always derives from umask, as it does on a first run.
-	rm -f "$_shadow"
-	cat - > "$_shadow"
+	overwrite_if_differs "$_shadow"
 
 	if [ ! -f "$1" ] || [ "$_operation" = "overwrite" ]; then
-		tell_status "installing $1"
-		cp "$_shadow" "$1"
+		# minimize FS diff
+		overwrite_if_differs "$1" "verbose" < "$_shadow"
 	elif [ "$_operation" = "append" ]; then
 		# an appended file is our content plus something else, so it never looks
 		# pristine. Excluded deliberately rather than by falling through.
@@ -136,6 +151,7 @@ store_config()
 
 	# The shadow duplicates $1 verbatim, secrets included, tighten it after
 	# the copy above, which takes its mode from the shadow.
+	[ "$(_file_mode "$_shadow")" = 600 ] ||
 	echo_do \
 	chmod 600 "$_shadow"
 }
@@ -148,8 +164,7 @@ store_exec()
 		mkdir -p "$(dirname "$1")" || exit 1
 	fi
 
-	tell_status "installing $1"
-	cat - > "$1" || exit 1
+	overwrite_if_differs "$1" "verbose" || exit 1
 	chmod 755 "$1"
 }
 
