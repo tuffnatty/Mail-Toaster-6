@@ -394,6 +394,8 @@ start_staged_jail()
 		devfs_ruleset="$JAIL_DEVFS_RULESET" \
 		$JAIL_START_EXTRA
 
+	[ "$_name" = base ] || \
+	[ "$_name" = bsd_cache ] || \
 	enable_bsd_cache
 
 	tell_status "updating pkg database"
