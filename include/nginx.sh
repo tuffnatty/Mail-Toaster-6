@@ -57,13 +57,6 @@ EO_NG_NSL
 
 }
 
-contains() {
-	string="$1"
-	substring="$2"
-	if [ "${string#*"$substring"}" != "$string" ]; then return 0; fi
-	return 1
-}
-
 configure_nginx_server_d()
 {
 	local _jail="$1"
