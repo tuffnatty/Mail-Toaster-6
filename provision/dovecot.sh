@@ -19,16 +19,22 @@ allow_sysvipc_stage()
 
 install_dovecot()
 {
+	tell_status "creating vpopmail user & group"
+	stage_exec pw groupadd -n vpopmail -g 89
+	stage_exec pw useradd -n vpopmail -s /nonexistent -d /usr/local/vpopmail -u 89 -g 89 -m -h-
+
+	if [ "$TLS_LIBRARY" != "libressl" ]; then
+		tell_status "installing dovecot"
+		stage_pkg_install dovecot-mysql dovecot-pigeonhole-mysql curl
+		return
+	fi
+
 	tell_status "installing dovecot package"
 	stage_pkg_install dovecot dovecot-pigeonhole curl perl5 gmake mysql84-client
 
 	tell_status "configure dovecot port options"
 	stage_make_conf dovecot2_SET 'mail_dovecot2_SET=MYSQL LIBWRAP EXAMPLES'
 	stage_make_conf dovecot_SET 'mail_dovecot_SET=MYSQL LIBWRAP EXAMPLES'
-
-	tell_status "creating vpopmail user & group"
-	stage_exec pw groupadd -n vpopmail -g 89
-	stage_exec pw useradd -n vpopmail -s /nonexistent -d /usr/local/vpopmail -u 89 -g 89 -m -h-
 
 	if [ "$TLS_LIBRARY" = "libressl" ]; then
 		echo 'DEFAULT_VERSIONS+=ssl=libressl' >> "$STAGE_MNT/etc/make.conf"
