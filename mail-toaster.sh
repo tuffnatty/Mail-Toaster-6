@@ -169,10 +169,18 @@ sed_inplace() {
 
 stage_unmount()
 {
-	# an empty STAGE_MNT would match every mountpoint on the host
-	[ -n "$STAGE_MNT" ] || fatal_err "stage_unmount: STAGE_MNT is unset"
+	if [ ! -e "$STAGE_MNT" ]; then
+		echo "staged FS mountpoint $STAGE_MNT does not exist"
+		return
+	fi
 
-	for _fs in $(mount | awk -v p="$STAGE_MNT/" 'index($3, p) == 1 { print $3 }' | sort -ru); do
+	local _mnt="$STAGE_MNT"
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		_mnt="$(readlink -f "$STAGE_MNT")"
+		[ -n "$_mnt" ] || fatal_err "readlink -f \"$STAGE_MNT\" returned nothing"
+	fi
+
+	for _fs in $(mount | awk -v p="$_mnt/" 'index($3, p) == 1 { print $3 }' | sort -ru); do
 		echo_do \
 		umount "$_fs"
 	done
@@ -183,6 +191,11 @@ cleanup_staged_fs()
 	tell_status "stage cleanup"
 	stop_jail stage
 	stage_unmount
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		zfs_destroy_fs "$(readlink -f "$ZFS_JAIL_MNT/stage")" -fr  # because of snapshots
+		[ ! -L "$ZFS_JAIL_MNT/stage" ] || echo_do rm "$ZFS_JAIL_MNT/stage"
+		return
+	fi
 	zfs_destroy_fs "$ZFS_JAIL_VOL/stage" -fr  # because of snapshots
 }
 
@@ -287,11 +300,17 @@ create_staged_fs()
 	PROVISION_TIMESTAMP="$(date -uIminutes)"
 	PROVISION_TIMESTAMP="${PROVISION_TIMESTAMP%+*}"
 
+	local _name="stage"; [ "${ZFS_REPLICATION_FRIENDLY:-0}" = 0 ] || _name="$1.$PROVISION_TIMESTAMP"
+	export STAGE_DATASET="$ZFS_JAIL_VOL/$_name"
 	if [ "$BASE_SNAP" = "EMPTY" ]; then
-		zfs_create_fs "$ZFS_JAIL_VOL/stage" || exit 1
+		echo_do \
+		zfs_create_fs "$ZFS_JAIL_VOL/$_name" || exit 1
 	else
 		echo_do \
-		zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
+		zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/$_name" || exit 1
+	fi
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		ln -sfh "$_name" "$ZFS_JAIL_MNT/stage" || exit 1
 	fi
 
 	assure_ip6_addr_is_declared "$1"
@@ -441,7 +460,7 @@ promote_staged_jail()
 	#add_automount "$1"
 	[ "$ZFS_SNAPSHOT_PROVISIONED" = 0 ] ||
 		echo_do \
-		zfs snapshot "$ZFS_JAIL_VOL/$1@provisioned"
+		zfs snapshot "$STAGE_DATASET@provisioned"
 
 	tell_status "service jail start $1"
 	service jail start "$1" || exit 1

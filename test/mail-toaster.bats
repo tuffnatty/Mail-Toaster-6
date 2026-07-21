@@ -468,49 +468,58 @@ unmounted_paths() {
 }
 
 @test "stage_unmount unmounts nested mounts before their parents" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   assert_line --index 0 "$STAGE_MNT/usr/ports/distfiles"
   assert_line --index 1 "$STAGE_MNT/usr/ports"
+  rm -fr "$STAGE_MNT"
 }
 
 @test "stage_unmount unmounts each mountpoint once" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   assert_equal "${#lines[@]}" 4
+  rm -fr "$STAGE_MNT"
 }
 
 @test "stage_unmount unmounts the stage devfs" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   assert_line "$STAGE_MNT/dev"
+  rm -fr "$STAGE_MNT"
 }
 
 @test "stage_unmount leaves the stage root mounted" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   refute_line "$STAGE_MNT"
+  rm -fr "$STAGE_MNT"
 }
 
 @test "stage_unmount ignores mounts outside the stage" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   # 'stage' as a substring elsewhere in the mount line is not a stage mount
   refute_line "${STAGE_MNT}-other/data"
   refute_line "$ZFS_JAIL_MNT/dovecot/stagefiles"
+  rm -fr "$STAGE_MNT"
 }
 
-@test "stage_unmount refuses to run with STAGE_MNT unset" {
+@test "stage_unmount is no-op with STAGE_MNT unset" {
   fake_mount
   STAGE_MNT=
   run stage_unmount
-  assert_failure
-  assert_output --partial "STAGE_MNT is unset"
+  assert_output --regexp "staged FS mountpoint  does not exist"
   refute_output --partial "umount /"
 }
 
