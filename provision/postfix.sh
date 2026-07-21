@@ -305,6 +305,8 @@ create_staged_fs postfix
 start_staged_jail postfix
 install_postfix
 configure_postfix
-start_postfix
-test_postfix
+if ! jail_is_running postfix; then
+	start_postfix
+	test_postfix
+fi
 promote_staged_jail postfix
