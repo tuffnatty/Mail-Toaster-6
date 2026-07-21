@@ -192,7 +192,6 @@ EO_MAKE_CONF
 }
 
 configure_fstab() {
-	#local _sub_dir=${1:-""}
 	local _etc_path="${1:-"$BASE_MNT/etc"}"
 	if [ ! -d "$_etc_path" ]; then mkdir -p "$_etc_path"; fi
 
