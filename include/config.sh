@@ -50,6 +50,7 @@ mt6_defaults()
 	export TOASTER_WEBMAIL_PROXY=${TOASTER_WEBMAIL_PROXY:-"haproxy"}
 	export CLAMAV_FANGFRISCH=${CLAMAV_FANGFRISCH:-"0"}
 	export CLAMAV_UNOFFICIAL=${CLAMAV_UNOFFICIAL:-"0"}
+	export NEWSYSLOG_COMPRESSION_METHOD=${NEWSYSLOG_COMPRESSION_METHOD:-"legacy"}
 	export POSTFIX_ADD_MYNETWORKS="${POSTFIX_ADD_MYNETWORKS:-}"
 	export POSTFIX_PLUS_ADDRESSING="${POSTFIX_PLUS_ADDRESSING:-0}"
 	export ROUNDCUBE_SQL=${ROUNDCUBE_SQL:-"$TOASTER_MYSQL"}
@@ -152,6 +153,7 @@ export CLAMAV_FANGFRISCH="0"
 export GEOIP_UPDATER="geoipupdate"
 export MAXMIND_ACCOUNT_ID=""
 export MAXMIND_LICENSE_KEY=""
+export NEWSYSLOG_COMPRESSION_METHOD="legacy"  # set to "none" to disable log compression redundant on ZFS
 export POSTFIX_ADD_MYNETWORKS=""  # additional trusted network masks for SMTP
 export POSTFIX_PLUS_ADDRESSING="0"  # set to 1 to enable plus addressing
 export ROUNDCUBE_SQL="0"
