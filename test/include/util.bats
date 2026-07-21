@@ -218,3 +218,50 @@ setup() {
     assert_output "$(command dirname "$s")"
   done
 }
+
+# contains() - pure string membership test
+
+@test "contains - substring found" {
+  run contains "hello world" "world"
+  assert_success
+}
+
+@test "contains - substring not found" {
+  run contains "hello world" "foo"
+  assert_failure
+}
+
+@test "contains - exact match" {
+  run contains "hello" "hello"
+  assert_success
+}
+
+@test "contains - prefix match" {
+  run contains "hello world" "hello"
+  assert_success
+}
+
+@test "contains - suffix match" {
+  run contains "hello world" "world"
+  assert_success
+}
+
+@test "contains - case sensitive (no match)" {
+  run contains "Hello World" "hello"
+  assert_failure
+}
+
+@test "contains - substring longer than string" {
+  run contains "hi" "hello"
+  assert_failure
+}
+
+@test "contains - listen keyword present" {
+  run contains "listen 80; server_name example.com;" "listen"
+  assert_success
+}
+
+@test "contains - listen keyword absent" {
+  run contains "server_name example.com;" "listen"
+  assert_failure
+}
