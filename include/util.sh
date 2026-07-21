@@ -309,6 +309,8 @@ EO_RESOLV
 	pkg_use_bsd_cache "$_root"
 }
 
+contains() { case "$1" in *"$2"*) ;; *) return 1 ;; esac; }
+
 dirname() {
 	# compatible with dirname(1) but several orders of magnitude faster
 	[ $# -gt 0 ] || return 1
