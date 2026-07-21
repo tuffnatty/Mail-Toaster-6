@@ -201,48 +201,47 @@ cleanup_staged_fs()
 
 install_fstab()
 {
+	local _data_mount _jail_mount _fstab _add=""
 	_data_mount="$ZFS_DATA_MNT/$1"
 	_jail_mount="$ZFS_JAIL_MNT/$1"
 	_fstab="$(get_jail_etc "$1")/fstab"
 
-	if [ ! -d "${_fstab%/*}" ]; then
-		mkdir "${_fstab%/*}" || exit 1
-	fi
-
 	tell_status "writing data mount to $_fstab"
-	echo "# Device                Mountpoint      FStype  Options         Dump    Pass#" | tee "$_fstab" || exit 1
-	echo "$_data_mount       $_jail_mount/data nullfs  rw,nocache,noatime,nosuid   0  0" | tee -a "$_fstab"
-	echo "devfs               $_jail_mount/dev  devfs   rw   0  0" | tee -a "$_fstab"
 
 	if [ -n "$JAIL_FSTAB" ]; then
 		tell_status "appending JAIL_FSTAB to fstab"
-		echo "$JAIL_FSTAB" | tee -a "$_fstab" || exit 1
+		_add="$JAIL_FSTAB"
 	fi
 
 	if [ "$TOASTER_USE_TMPFS" = 1 ]; then
-		if ! grep -q "$_jail_mount/tmp" "$_fstab"; then
+		if ! contains "$JAIL_FSTAB" "$_jail_mount/tmp"; then
 			tell_status "adding tmpfs to fstab"
-			echo "tmpfs $_jail_mount/tmp     tmpfs rw,mode=01777,noexec,nosuid  0  0" | tee -a "$_fstab"
-			echo "tmpfs $_jail_mount/var/run tmpfs rw,mode=01755,noexec,nosuid  0  0" | tee -a "$_fstab"
+			_add="$_add
+tmpfs $_jail_mount/tmp     tmpfs rw,mode=01777,noexec,nosuid  0  0
+tmpfs $_jail_mount/var/run tmpfs rw,mode=01755,noexec,nosuid  0  0"
 		fi
 	fi
 
-	# ports build under /tmp/portbuild (WRKDIRPREFIX, set in provision/base.sh),
-	# which noexec breaks. Only the stage builds ports; the promoted jail keeps noexec.
-	sed -e "s|[[:space:]]$ZFS_JAIL_MNT/$1| $ZFS_JAIL_MNT/stage|" \
-		-e "\|[[:space:]]$ZFS_JAIL_MNT/stage/tmp[[:space:]]| s|,noexec||" \
-		"$_fstab" > \
-		"$_fstab.stage" || exit 1
-
-	tell_status "appending pkg & ports to fstab.stage"
-	echo "/usr/ports         $STAGE_MNT/usr/ports       nullfs rw  0  0" | tee -a "$_fstab.stage"
-	echo "/var/cache/pkg     $STAGE_MNT/var/cache/pkg   nullfs rw  0  0" | tee -a "$_fstab.stage"
+	store_config "$_fstab" "overwrite" <<EO_PROD_FSTAB || exit 1
+# Device                Mountpoint      FStype  Options         Dump    Pass#
+$_data_mount       $_jail_mount/data nullfs  rw,nocache,noatime,nosuid   0  0
+devfs               $_jail_mount/dev  devfs   rw   0  0
+$_add
+EO_PROD_FSTAB
 
 	# copy staged fstab into place for jail shutdown
-	if [ ! -d "$(get_jail_etc stage)" ]; then
-		mkdir -p "$(get_jail_etc stage)" || exit 1
-	fi
-	cp "$_fstab.stage" "$(get_jail_etc stage)/fstab" || exit 1
+	{
+		# ports build under /tmp/portbuild (WRKDIRPREFIX, set in provision/base.sh),
+		# which noexec breaks. Only the stage builds ports; the promoted jail keeps noexec.
+		sed -e "s|[[:space:]]$ZFS_JAIL_MNT/$1| $ZFS_JAIL_MNT/stage|" \
+			-e "\|[[:space:]]$ZFS_JAIL_MNT/stage/tmp[[:space:]]| s|,noexec||" \
+			"$_fstab"
+		tell_status "appending pkg & ports to fstab.stage" 1>&2
+		cat <<EO_STAGE_FSTAB
+/usr/ports         $STAGE_MNT/usr/ports       nullfs rw  0  0
+/var/cache/pkg     $STAGE_MNT/var/cache/pkg   nullfs rw  0  0
+EO_STAGE_FSTAB
+	} | store_config "$(get_jail_etc stage)/fstab" "overwrite" || exit 1
 }
 
 fstab_add_mount() {
