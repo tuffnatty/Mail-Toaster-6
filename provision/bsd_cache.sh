@@ -7,6 +7,7 @@ export JAIL_CONF_EXTRA=""
 export JAIL_FSTAB=""
 
 mt6-include nginx
+mt6-include util
 
 configure_nginx_server()
 {
