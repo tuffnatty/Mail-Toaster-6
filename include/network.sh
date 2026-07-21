@@ -58,8 +58,14 @@ install_pfrule()
 
 	# disable updates
 	#mt6-fetch contrib pfrule.sh
+	# minimize FS diff
+	[ -d "$_pfdir" ] ||
 	echo_do \
 	install -d "$_pfdir"
+	if [ -x "$_pfdir/pfrule.sh" ] && diff -q "$_pfdir/pfrule.sh" contrib/pfrule.sh >/dev/null; then
+		tell_status "pf rule has not changed"
+		return 0
+	fi
 	echo_do \
 	install -C -m 0755 contrib/pfrule.sh "$_pfdir/pfrule.sh"
 }

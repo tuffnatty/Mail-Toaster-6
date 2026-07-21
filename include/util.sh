@@ -66,16 +66,27 @@ dec_to_hex() { printf '%04x\n' "$1"; }
 store_config()
 {
 	# $1 - path to config file, $2 - operation, STDIN is file contents
-	local _operation=${2:-""}
+	local _operation=${2:-""} _data
 
 	if [ ! -d "$(dirname "$1")" ]; then
 		echo_do \
 		mkdir -p "$(dirname "$1")"
 	fi
 
-	cat - > "$1.mt6"
+	if [ ! -f "$1.mt6" ]; then
+		echo_do tee "$1.mt6"
+	else
+		# minimize filesystem diff
+		[ "${_data:="$(cat)"}" = "$(cat "$1.mt6")" ] ||
+			printf '%s' "$_data" | echo_do tee "$1.mt6"
+	fi >/dev/null
 
 	if [ ! -f "$1" ] || [ "$_operation" = "overwrite" ]; then
+		# minimize FS diff
+		if [ -f "$1" ] && diff -q "$1" "$1.mt6" >/dev/null 2>&1; then
+			tell_status "$1 has not changed" 
+			return 0
+		fi
 		tell_status "installing $1"
 		echo_do \
 		cp "$1.mt6" "$1"
