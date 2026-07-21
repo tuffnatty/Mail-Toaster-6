@@ -231,9 +231,17 @@ configure_postfix_main_cf()
 
 	if [ -f "$_dkim_private_key" ]; then
 		stage_exec postconf -e 'milter_default_action = accept'
-		stage_exec postconf -e 'smtpd_milters = inet:localhost:8891'
+		stage_exec postconf -e "smtpd_milters = $(stage_exec postconf -h smtpd_milters | list_add_unique 'inet:localhost:8891')"
 		stage_exec postconf -e 'non_smtpd_milters = $smtpd_milters'
 	fi
+
+	if jail_is_running rspamd; then
+		stage_exec postconf -e "smtpd_milters = $(stage_exec postconf -h smtpd_milters | list_add_unique "inet:$(get_jail_ip rspamd):11332")"
+	fi
+}
+
+list_add_unique() {
+	awk -v RS='[ ,\n]+' -v ORS=' ' -v V="$1" -e '$1 == V { seen = 1 } 1 END { if (!seen) print V }'
 }
 
 configure_postfix_master_cf()
