@@ -326,6 +326,8 @@ start_staged_jail postfix
 install_postfix
 install_postfix_mysql
 configure_postfix
-start_postfix
-test_postfix
+if ! jail_is_running postfix; then
+	start_postfix
+	test_postfix
+fi
 promote_staged_jail postfix
