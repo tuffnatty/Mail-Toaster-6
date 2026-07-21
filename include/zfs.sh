@@ -25,7 +25,14 @@ zfs_mountpoint_exists()
 
 zfs_create_fs()
 {
-	if zfs_filesystem_exists "$1"; then return; fi
+	# snapshot /data before provisioning
+	if zfs_filesystem_exists "$1"; then
+		[ "${ZFS_SNAPSHOT_DATA:-0}" = 0 ] ||
+			[ "$(zfs list -Hpo written "$1")" = 0 ] ||
+				zfs snapshot "$1@before-$PROVISION_TIMESTAMP"
+		return
+	fi
+
 	if [ -n "${2:-}" ] && zfs_mountpoint_exists "$2"; then return; fi
 
 	if echo "$1" | grep -q "$ZFS_DATA_VOL"; then

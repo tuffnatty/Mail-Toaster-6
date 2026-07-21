@@ -259,6 +259,10 @@ create_staged_fs()
 	cleanup_staged_fs
 
 	tell_status "stage jail filesystem setup"
+
+	PROVISION_TIMESTAMP="$(date -uIminutes)"
+	PROVISION_TIMESTAMP="${PROVISION_TIMESTAMP%+*}"
+
 	echo "zfs clone $BASE_SNAP $ZFS_JAIL_VOL/stage"
 	zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
 
