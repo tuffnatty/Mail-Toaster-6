@@ -41,6 +41,8 @@ mt6_defaults()
 	export TOASTER_MSA=${TOASTER_MSA:-"haraka"}
 	export TOASTER_PKG_AUDIT=${TOASTER_PKG_AUDIT:-"0"}
 	export TOASTER_PKG_BRANCH=${TOASTER_PKG_BRANCH:-"latest"}
+	export TOASTER_PKG_REPO_NAME=${TOASTER_PKG_REPO_NAME:-""}
+	export TOASTER_PKG_REPO_URL=${TOASTER_PKG_REPO_URL:-""}
 	export TOASTER_USE_TMPFS=${TOASTER_USE_TMPFS:-"0"}
 	export TOASTER_VPOPMAIL_CLEAR=${TOASTER_VPOPMAIL_CLEAR:-"1"}
 	export TOASTER_VPOPMAIL_EXT=${TOASTER_VPOPMAIL_EXT:-"0"}
@@ -141,6 +143,8 @@ export TOASTER_BASE_MTA=""
 export TOASTER_BASE_PKG_BRANCH=""   # pkgbase: base_release_N (default), base_latest, base_weekly
 export TOASTER_PKG_AUDIT="0"
 export TOASTER_PKG_BRANCH="latest"
+export TOASTER_PKG_REPO_NAME=""  # local pkg repository name
+export TOASTER_PKG_REPO_URL=""  # local pkg repository URL (just the scheme://host part)
 export TOASTER_USE_TMPFS="0"
 export TOASTER_VPOPMAIL_CLEAR="1"
 export TOASTER_VPOPMAIL_EXT="0"

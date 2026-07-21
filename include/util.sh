@@ -102,26 +102,57 @@ freebsd_major()
 
 configure_pkg_latest()
 {
-	local _pkg_host="pkg.FreeBSD.org"
+	local REPODIR="$1/usr/local/etc/pkg/repos"
+	if [ -f "$REPODIR/FreeBSD.conf" ]; then return; fi
 
+	configure_pkg_repos "$1"
+}
+
+repo_conf() { store_config "$REPODIR/$1.conf" "overwrite"; } <<EO_REPO_CONF
+$1: {
+	url: "$2",
+	priority: $3,
+	enabled: $4
+}
+EO_REPO_CONF
+
+configure_pkg_repos() {
+	local _root="$1"
+
+	# Our desired config:
+	# FreeBSD.conf: default priority
+	# FreeBSD-kmods.conf: enabled=no for jails
+	# MT6.conf: priority=5, bsd_cache should be running
+	# MT6-kmods.conf: priority=5, bsd_cache should be running, enabled=no for jails
+	# $PKG_REPO_NAME.conf: priority=10
+	local _cache_on=no _kmods_on=no _cache_kmods_on=no
+	[ -n "$_root" ] || _kmods_on=yes
 	if jail_is_running bsd_cache; then
 		tell_status "switching pkg to bsd_cache"
-		_pkg_host="pkg"
+		_cache_on=yes
+		_cache_kmods_on="$_kmods_on"
 	fi
 
 	local REPODIR="$1/usr/local/etc/pkg/repos"
-	if [ -f "$REPODIR/FreeBSD.conf" ]; then return; fi
 
 	local _repo_name="FreeBSD-ports"
 	if [ "$(freebsd_major "$1")" -lt "15" ]; then _repo_name="FreeBSD"; fi
 
 	tell_status "switching pkg from quarterly to latest"
-	mkdir -p "$REPODIR"
-	store_config "$REPODIR/FreeBSD.conf" "overwrite" <<EO_PKG
-$_repo_name: {
-  url: "pkg+http://$_pkg_host/\${ABI}/$TOASTER_PKG_BRANCH"
-}
-EO_PKG
+
+	local _fbsd_url="pkg+http://pkg.FreeBSD.org"
+	local _ports="\${ABI}/$TOASTER_PKG_BRANCH"
+	local _kmods="\${ABI}/kmods_${TOASTER_PKG_BRANCH}_\${VERSION_MINOR}"
+
+	[ -f "$REPODIR/$_repo_name.conf" ] ||  # preserve main conf
+	repo_conf "$_repo_name"		"$_fbsd_url/$_ports"	0 yes
+	repo_conf "$_repo_name-kmods"	"$_fbsd_url/$_kmods"	0 "$_kmods_on"
+
+	repo_conf MT6			"http://pkg/$_ports"	5 "$_cache_on"
+	repo_conf MT6-kmods		"http://pkg/$_kmods"	5 "$_cache_kmods_on"
+
+	[ -z "$PKG_REPO_NAME" ] || [ -z "$PKG_REPO_URL" ] ||
+	repo_conf "$PKG_REPO_NAME"	"$PKG_REPO_URL/$_ports"	10 yes
 }
 
 preserve_file()
@@ -162,38 +193,22 @@ enable_bsd_cache()
 	sockstat -4 -6 -p 80 -q -j bsd_cache | grep -q . || return
 	sockstat -4 -6 -p 53 -q -j dns | grep -q . || return
 
-	tell_status "enabling bsd_cache"
+	tell_status "enabling bsd_cache for ${1:-stage}"
 
-	store_config "$STAGE_MNT/etc/resolv.conf" "overwrite" <<EO_RESOLV
+	local _root="${1:-"$STAGE_MNT"}"
+	store_config "$_root/etc/resolv.conf" "overwrite" <<EO_RESOLV
 nameserver $(get_jail_ip dns)
 nameserver $(get_jail_ip6 dns)
 EO_RESOLV
 
-	local _repo_dir="$ZFS_JAIL_MNT/stage/usr/local/etc/pkg/repos"
-	if [ ! -d "$_repo_dir" ]; then mkdir -p "$_repo_dir"; fi
-
-	local _repo_name="FreeBSD-ports"
-	if [ "$(freebsd_major "$ZFS_JAIL_MNT/stage")" -lt "15" ]; then _repo_name="FreeBSD"; fi
-
-	store_config "$_repo_dir/FreeBSD.conf" <<EO_PKG_CONF
-$_repo_name: {
-	enabled: no
-}
-EO_PKG_CONF
-
-	store_config "$_repo_dir/MT6.conf" <<EO_PKG_MT6
-MT6: {
-	url: "http://pkg/\${ABI}/$TOASTER_PKG_BRANCH",
-	enabled: yes
-}
-EO_PKG_MT6
+	configure_pkg_repos "$_root"
 
 	# cache pkg audit vulnerability db
 	sed_inplace \
 		-e '/^#VULNXML_SITE/ s/^#//' \
 		-e '/^VULNXML_SITE/ s/vuxml.freebsd.org/vulnxml/' \
-		"$ZFS_JAIL_MNT/stage/usr/local/etc/pkg.conf"
+		"$_root/usr/local/etc/pkg.conf"
 
 	sed_inplace -e '/^ServerName/ s/update.FreeBSD.org/freebsd-update/' \
-		"$ZFS_JAIL_MNT/stage/etc/freebsd-update.conf"
+		"$_root/etc/freebsd-update.conf"
 }
