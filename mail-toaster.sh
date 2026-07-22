@@ -377,7 +377,7 @@ promote_staged_jail()
 
 	rename_active_to_last "$1"
 	rename_ready_to_active "$1"
-	add_jail_conf "$1"
+	add_jail_conf "$1" "${2:-""}"
 	#add_automount "$1"
 	[ "$ZFS_SNAPSHOT_PROVISIONED" = 0 ] ||
 		zfs snapshot "$ZFS_JAIL_VOL/$1@provisioned"
