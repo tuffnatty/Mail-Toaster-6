@@ -565,6 +565,7 @@ configure_sieve()
 {
 	SIEVE_DIR="$STAGE_MNT/usr/local/lib/dovecot/sieve"
 	if [ ! -d "$SIEVE_DIR" ]; then
+		echo_do \
 		mkdir "$SIEVE_DIR"
 	fi
 

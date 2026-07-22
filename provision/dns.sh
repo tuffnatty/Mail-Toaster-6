@@ -193,6 +193,7 @@ enable_control()
 	fi
 
 	tell_status "creating $(get_jail_data dns)/control"
+	echo_do \
 	mkdir "$(get_jail_data dns)/control"
 
 	tell_status "configuring unbound-control"
@@ -220,9 +221,11 @@ configure_unbound()
 	UNBOUND_DIR="$STAGE_MNT/usr/local/etc/unbound"
 	UNBOUND_LOCAL=""
 
+	echo_do \
 	cp "$UNBOUND_DIR/unbound.conf.sample" "$UNBOUND_DIR/unbound.conf"
 	if [ -f 'unbound.conf.local' ]; then
 		tell_status "moving unbound.conf.local to data volume"
+		echo_do \
 		mv unbound.conf.local "$(get_jail_data dns)/"
 	fi
 
@@ -282,6 +285,7 @@ switch_host_resolver()
 {
 	if sysrc -c -f /etc/resolvconf.conf resolvconf=NO; then
 		echo "turning resolvconf back on"
+		echo_do \
 		truncate -s 0 /etc/resolvconf.conf
 	fi
 
