@@ -414,7 +414,7 @@ promote_staged_jail()
 	# Now the old jail is stopped, and we may complete the etc migration
 	migrate_jail_etc_finish "$1"
 
-	add_jail_conf "$1"
+	add_jail_conf "$1" "${2:-""}"
 	#add_automount "$1"
 	[ "$ZFS_SNAPSHOT_PROVISIONED" = 0 ] ||
 		zfs snapshot "$ZFS_JAIL_VOL/$1@provisioned"
