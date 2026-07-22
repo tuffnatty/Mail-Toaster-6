@@ -233,7 +233,7 @@ teardown() {
 # --- start_mysql behavior ---
 
 @test "mysql - start calls service mysql-server start" {
-  stage_exec()  { echo "EXEC:$*"; }
+  echo_stage_exec()  { echo "EXEC:$*"; }
   configure_mysql_root_password() { :; }
   configure_mysql_keys() { :; }
   run start_mysql
@@ -245,7 +245,7 @@ teardown() {
 
 @test "mysql - test checks port 3306" {
   stage_listening() { echo "PORT:$*"; }
-  stage_exec() { :; }
+  echo_stage_exec() { :; }
   run test_mysql
   assert_success
   assert_output --partial "PORT:3306"

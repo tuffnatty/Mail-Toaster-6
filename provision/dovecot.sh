@@ -355,10 +355,12 @@ configure_tls_certs()
 	local _ssldir="$ZFS_DATA_MNT/dovecot/etc/tls"
 	if [ ! -d "$_ssldir" ] && [ -d "$ZFS_DATA_MNT/dovecot/etc/ssl" ]; then
 		tell_status "Renaming /data/etc/ssl to /data/etc/tls"
+		echo_do \
 		mv "$ZFS_DATA_MNT/dovecot/etc/ssl" "$_ssldir"
 	fi
 	if [ ! -d "$_ssldir/certs" ]; then
 		# shellcheck disable=SC2174
+		echo_do \
 		mkdir -m 644 -p "$_ssldir/certs"
 	fi
 
@@ -528,6 +530,7 @@ configure_sieve()
 {
 	SIEVE_DIR="$STAGE_MNT/usr/local/lib/dovecot/sieve"
 	if [ ! -d "$SIEVE_DIR" ]; then
+		echo_do \
 		mkdir "$SIEVE_DIR"
 	fi
 
@@ -610,7 +613,9 @@ password=$(grep -v ^# "$ZFS_DATA_MNT/vpopmail/home/etc/vpopmail.mysql" | head -n
 database=vpopmail
 EO_DOVECOT_MY
 
+	echo_do \
 	chmod 0640 "$_mycnf"
+	echo_do \
 	chown 89:89 "$_mycnf"
 }
 
@@ -636,6 +641,7 @@ configure_dovecot()
 	configure_dovecot_pf
 	configure_dovecot_lastauth
 
+	echo_do \
 	mkdir -p "$STAGE_MNT/var/spool/postfix/private"
 }
 
