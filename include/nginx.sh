@@ -118,6 +118,12 @@ configure_nginx()
 
 	stage_sysrc nginx_flags='-c /data/etc/nginx/nginx.conf'
 
+	local _extra=""
+	[ "$TOASTER_NGINX_LOG_FORMAT" != main ] || _extra="
+	log_format  main  '\$remote_addr - \$remote_user [\$time_local] \"\$request\" '
+			  '\$status \$body_bytes_sent \"\$http_referer\" '
+			  '\"\$http_user_agent\" \"\$http_x_forwarded_for\"';"
+
 	store_config "$_etcdir/nginx.conf" <<EO_NGINX_CONF
 # load_module /usr/local/libexec/nginx/ngx_http_acme_module.so;
 load_module /usr/local/libexec/nginx/ngx_mail_module.so;
@@ -134,8 +140,8 @@ events {
 http {
 	include       /usr/local/etc/nginx/mime.types;
 	default_type  application/octet-stream;
-
-	access_log $TOASTER_NGINX_LOG_DIR/access.log combined;
+	$_extra
+	access_log $TOASTER_NGINX_LOG_DIR/access.log $TOASTER_NGINX_LOG_FORMAT;
 
 	sendfile        on;
 	gzip on;
