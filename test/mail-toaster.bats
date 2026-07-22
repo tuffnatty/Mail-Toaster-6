@@ -489,7 +489,7 @@ EOF
 }
 
 unmounted_paths() {
-  stage_unmount | awk '/^umount /{ print $2 }'
+  stage_unmount 2>&1 | awk '/^umount /{ print $2 }'
 }
 
 @test "stage_unmount unmounts nested mounts before their parents" {
@@ -565,7 +565,7 @@ unmounted_paths() {
   export STAGE_MNT="$ZFS_JAIL_MNT/stage" JAIL_NET_INTERFACE=lo1
   export JAIL_DEVFS_RULESET=7 JAIL_START_EXTRA=""
   tell_status() { :; }
-  jail() { echo "$@"; }
+  jail() { :; }
   enable_bsd_cache() { :; }
   pkg() { :; }
 

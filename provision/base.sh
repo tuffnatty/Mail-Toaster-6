@@ -11,7 +11,7 @@ mt6-include editor
 create_base_filesystem()
 {
 	if [ -e "$BASE_MNT/dev/null" ]; then
-		echo "unmounting $BASE_MNT/dev"
+		echo_do \
 		umount "$BASE_MNT/dev"
 	fi
 
@@ -36,8 +36,10 @@ freebsd_update()
 	sed_inplace -e 's/^Components.*/Components world/' "$BASE_MNT/etc/freebsd-update.conf"
 
 	local _release=""; _release="$(chroot "$BASE_MNT" /bin/freebsd-version)"
+	echo_do \
 	freebsd-update -b "$BASE_MNT" --currently-running "$_release" -f "$BASE_MNT/etc/freebsd-update.conf" fetch install
 	echo "clearing freebsd-update cache"
+	echo_do \
 	rm -rf "$BASE_MNT/var/db/freebsd-update"/*
 }
 
@@ -55,6 +57,7 @@ install_freebsd()
 		bsdinstall)
 			export BSDINSTALL_DISTSITE;
 			BSDINSTALL_DISTSITE="$(freebsd_release_url_base)/$(uname -m)/$(uname -m)/$FBSD_REL_VER"
+			echo_do \
 			bsdinstall jail "$BASE_MNT"
 			;;
 		pkgbase)
@@ -152,10 +155,12 @@ EO_PKG_SECURITY
 configure_tls_dirs()
 {
 	if [ ! -d "$BASE_MNT/etc/ssl/certs" ]; then
+		echo_do \
 		mkdir -m 0644 "$BASE_MNT/etc/ssl/certs"
 	fi
 
 	if [ ! -d "$BASE_MNT/etc/ssl/private" ]; then
+		echo_do \
 		mkdir -m 0640 "$BASE_MNT/etc/ssl/private"
 	fi
 }
@@ -170,9 +175,11 @@ configure_tls_dhparams()
 	if [ ! -f "$DHP" ]; then
 		# for upgrade compatibilty
 		tell_status "Generating a 2048 bit $DHP"
+		echo_do \
 		openssl dhparam -out "$DHP" 2048
 	fi
 
+	echo_do \
 	cp "$DHP" "$BASE_MNT/etc/ssl/dhparam.pem"
 }
 
@@ -191,12 +198,14 @@ EO_MAKE_CONF
 
 configure_base()
 {
-	if [ ! -d "$BASE_MNT/usr/ports" ]; then mkdir "$BASE_MNT/usr/ports"; fi
+	if [ ! -d "$BASE_MNT/usr/ports" ]; then echo_do mkdir "$BASE_MNT/usr/ports"; fi
 
 	tell_status "adding base jail resolv.conf"
+	echo_do \
 	cp /etc/resolv.conf "$BASE_MNT/etc"
 
 	tell_status "setting base jail timezone (to hosts)"
+	echo_do \
 	cp /etc/localtime "$BASE_MNT/etc"
 
 	# securitywise disabled
@@ -207,6 +216,7 @@ configure_base()
 
 	tell_status "adding base rc.conf settings"
 	# shellcheck disable=2016
+	echo_do \
 	sysrc -f "$BASE_MNT/etc/rc.conf" \
 		hostname=base \
 		cron_flags='$cron_flags -J 15' \
@@ -348,12 +358,15 @@ freebsd_update
 configure_base
 start_staged_jail base "$BASE_MNT"
 install_base
+echo_do \
 pkg -j stage audit -F || [ "${TOASTER_PKG_AUDIT:-1}" = 0 ]
 stop_jail stage
 if [ -e "$BASE_MNT/dev/null" ]; then umount "$BASE_MNT/dev"; fi
+echo_do \
 rm -rf "$BASE_MNT/var/cache/pkg"/*
+echo_do \
 rm -rf "$BASE_MNT/var/db/freebsd-update"/*
-echo "zfs snapshot ${BASE_SNAP}"
+echo_do \
 zfs snapshot "${BASE_SNAP}"
 add_jail_conf base
 
