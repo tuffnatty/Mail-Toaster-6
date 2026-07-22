@@ -3,6 +3,7 @@
 set -e
 
 . mail-toaster.sh
+mt6-include util
 
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
