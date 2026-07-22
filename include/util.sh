@@ -3,7 +3,44 @@
 # bump version when a change in mail toaster effects provision scripts
 mt6_version() { echo "20260403"; }
 
-tell_status() { echo; echo "   ***   $1   ***"; echo; }
+# cleaner output
+if [ -t 0 ] && [ "${MT6_TEST_ENV:-0}" != 1 ]; then
+	red() { printf "\033[31m"; }
+	dark_green() { printf "\033[32m"; }
+	green() { printf "\033[92m"; }
+	yellow() { printf "\033[33m"; }
+	normal() { printf "\033[0m"; }
+else
+	red() { :; }
+	dark_green() { :; }
+	green() { :; }
+	yellow() { :; }
+	normal() { :; }
+fi
+dumbquote() { printf '%s' "$1" | sed "s/'/'\\\\''/g;1s/^/'/;\$s/\$/'/"; }  # http://www.etalabs.net/sh_tricks.html
+quote() {
+	local _s _sep=
+	# shellcheck disable=SC3050
+	if _s="$(printf ' %q' "$@" 2>/dev/null)"; then
+		printf '%s' "${_s# }"
+	else
+		for _arg; do
+			case "$_arg" in
+				""|*[!A-Za-z0-9@%_:,./=+-]*) printf "$_sep%s" "$(dumbquote "$_arg")" ;;
+				*) printf "$_sep%s" "$_arg" ;;
+			esac
+			_sep=' '
+		done
+	fi
+}
+
+echo_do()
+{
+	printf '%s\n' "$(dark_green)$(quote "$@")$(normal)" 1>&2
+	"$@"
+}
+
+tell_status() { yellow; echo; echo "   ***   $1   ***"; echo; normal; } 1>&2
 
 mt6_version_check()
 {
@@ -68,7 +105,7 @@ store_config()
 	fi
 
 	if [ ! -d "$(dirname "$1")" ]; then
-		tell_status "creating $(dirname "$1")"
+		echo_do \
 		mkdir -p "$(dirname "$1")"
 	fi
 
@@ -84,10 +121,12 @@ store_config()
 	elif [ "$_operation" = "append" ]; then
 		# an appended file is our content plus something else, so it never looks
 		# pristine. Excluded deliberately rather than by falling through.
-		cat "$_shadow" >> "$1"
+		echo_do \
+		tee -a "$1" <"$_shadow" >/dev/null 
 	elif [ "$_operation" = "update" ] && [ -n "$_pristine" ]; then
 		backup_config "$1"
 		tell_status "updating unmodified $1"
+		echo_do \
 		cp "$_shadow" "$1"
 	else
 		tell_status "preserving $1"
@@ -95,6 +134,7 @@ store_config()
 
 	# The shadow duplicates $1 verbatim, secrets included, tighten it after
 	# the copy above, which takes its mode from the shadow.
+	echo_do \
 	chmod 600 "$_shadow"
 }
 
@@ -102,7 +142,7 @@ store_exec()
 {
 	# $1 - path to file, STDIN is file contents
 	if [ ! -d "$(dirname "$1")" ]; then
-		tell_status "creating $(dirname "$1")"
+		echo_do \
 		mkdir -p "$(dirname "$1")" || exit 1
 	fi
 
@@ -211,7 +251,8 @@ preserve_file()
 
 	if [ -f "$_active_cfg" ]; then
 		tell_status "preserving $_active_cfg"
-		[ -d "$(dirname "$_stage_cfg")" ] || mkdir -p "$(dirname "$_stage_cfg")"
+		[ -d "$(dirname "$_stage_cfg")" ] || echo_do mkdir -p "$(dirname "$_stage_cfg")"
+		echo_do \
 		cp -p "$_active_cfg" "$_stage_cfg" || return 1
 		return
 	fi

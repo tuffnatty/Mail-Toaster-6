@@ -184,7 +184,7 @@ start_mysql()
 		unmount_data mysql
 	fi
 
-	stage_exec service mysql-server start
+	echo_stage_exec service mysql-server start
 	configure_mysql_root_password
 	configure_mysql_keys
 }

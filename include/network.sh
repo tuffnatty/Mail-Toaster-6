@@ -78,7 +78,9 @@ install_pfrule()
 	_pfdir="$(get_jail_host_etc "$1")/pf.conf.d"
 
 	mt6-fetch contrib pfrule.sh
+	echo_do \
 	install -d -m 0755 "$_pfdir"
+	echo_do \
 	install -C -m 0755 contrib/pfrule.sh "$(get_pfrule_path)"
 }
 
@@ -95,11 +97,11 @@ install_acme_sh()
 	stage_pkg_install acme.sh
 
 	# use a home directory that persists across deployments
-	stage_exec sh -c "[ -d /data/home/acme ] || mkdir -p /data/home/acme"
-	stage_exec pw usermod acme -d /data/home/acme
+	echo_stage_exec sh -c "[ -d /data/home/acme ] || mkdir -p /data/home/acme"
+	echo_stage_exec pw usermod acme -d /data/home/acme
 
-	stage_exec sh -c "[ -e /data/home/acme/deploy] || ln -s /usr/local/share/examples/acme.sh/deploy /data/home/acme/deploy"
-	stage_exec ln -s /data/home/acme /root/.acme.sh
+	echo_stage_exec sh -c "[ -e /data/home/acme/deploy] || ln -s /usr/local/share/examples/acme.sh/deploy /data/home/acme/deploy"
+	echo_stage_exec ln -s /data/home/acme /root/.acme.sh
 
 	store_exec "$STAGE_MNT/usr/local/etc/periodic/daily/acme.sh" <<EO_ACME_CRON
 #!/usr/local/bin/bash

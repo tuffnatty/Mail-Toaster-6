@@ -15,12 +15,15 @@ install_tls_pair()
 	for _f in "$_crt" "$_key"; do
 		if [ -f "$_f" ]; then
 			tell_status "preserving unpaired $_f as $_f.orphan"
+			echo_do \
 			mv "$_f" "$_f.orphan"
 		fi
 	done
 
 	tell_status "installing TLS certificate $_crt"
+	echo_do \
 	install -m 0644 "${3:-$HOST_TLS_CRT}" "$_crt"
+	echo_do \
 	install -m 0600 "${4:-$HOST_TLS_KEY}" "$_key"
 }
 
@@ -33,10 +36,13 @@ install_jail_tls_pair()
 
 	if [ ! -d "$_tlsdir" ] && [ -d "$_etc/ssl" ]; then
 		tell_status "Renaming /data/etc/ssl to /data/etc/tls"
+		echo_do \
 		mv "$_etc/ssl" "$_tlsdir"
 	fi
 
+	echo_do \
 	install -d -m 0755 "$_tlsdir/certs"
+	echo_do \
 	install -d -m 0700 "$_tlsdir/private"
 
 	local _crt="$_tlsdir/certs/${TOASTER_HOSTNAME}.pem"
@@ -57,6 +63,7 @@ install_tls_pem()
 	[ ! -f "$1" ] || return 0
 
 	tell_status "installing TLS key and certificate to $1"
+	echo_do \
 	install -d "$(dirname "$1")"
-	( umask 077; cat "$HOST_TLS_KEY" "$HOST_TLS_CRT" > "$1" )
+	( echo_do umask 077; echo_do cat "$HOST_TLS_KEY" "$HOST_TLS_CRT" > "$1" )
 }
