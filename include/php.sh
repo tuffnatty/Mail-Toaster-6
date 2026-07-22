@@ -105,7 +105,7 @@ start_php_fpm()
 {
 	tell_status "starting PHP FPM"
 	stage_sysrc php_fpm_enable=YES
-	stage_exec service php_fpm start || stage_exec service php_fpm restart
+	echo_stage_exec service php-fpm start || echo_stage_exec service php-fpm restart
 }
 
 test_php_fpm()

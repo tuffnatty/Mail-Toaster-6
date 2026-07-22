@@ -464,7 +464,7 @@ EOF
 }
 
 unmounted_paths() {
-  stage_unmount | awk '/^umount /{ print $2 }'
+  stage_unmount 2>&1 | awk '/^umount /{ print $2 }'
 }
 
 @test "stage_unmount unmounts nested mounts before their parents" {

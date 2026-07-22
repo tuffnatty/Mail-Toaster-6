@@ -44,6 +44,7 @@ err_exit()       { echo "ERR: $*" >&2; }
 proclaim_success() { :; }
 tell_settings()  { :; }
 service_config() { :; }
+echo_do()        { echo "$@" >&2; "$@"; }
 
 # Versioning
 mt6_version()    { echo "20260403"; }
@@ -100,6 +101,7 @@ stage_fbsd_pkgbase()       { :; }
 stage_pkg_install()        { :; }
 stage_port_install()       { :; }
 stage_exec()               { :; }
+echo_stage_exec()          { :; }
 stage_sysrc()              { :; }
 stage_make_conf()          { :; }
 stage_listening()          { :; }

@@ -378,10 +378,12 @@ configure_tls_certs()
 	_ssldir="$(get_jail_data dovecot)/etc/tls"
 	if [ ! -d "$_ssldir" ] && [ -d "$(get_jail_data dovecot)/etc/ssl" ]; then
 		tell_status "Renaming /data/etc/ssl to /data/etc/tls"
+		echo_do \
 		mv "$(get_jail_data dovecot)/etc/ssl" "$_ssldir"
 	fi
 	if [ ! -d "$_ssldir/certs" ]; then
 		# shellcheck disable=SC2174
+		echo_do \
 		mkdir -m 644 -p "$_ssldir/certs"
 	fi
 
@@ -553,6 +555,7 @@ configure_sieve()
 {
 	SIEVE_DIR="$STAGE_MNT/usr/local/lib/dovecot/sieve"
 	if [ ! -d "$SIEVE_DIR" ]; then
+		echo_do \
 		mkdir "$SIEVE_DIR"
 	fi
 

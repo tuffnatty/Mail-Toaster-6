@@ -205,16 +205,13 @@ stop_jail()
 	tell_status "stopping jail $1"
 	local _safe; _safe=$(safe_jailname "$1")
 	if jail_is_running "$_safe"; then
-		echo "service jail stop $_safe"
-		if ! service jail stop "$_safe"; then
-			echo "jail -r $_safe"
-			if jail -r "$_safe" 2>/dev/null; then echo "removed"; fi
+		if ! echo_do service jail stop "$_safe"; then
+			if echo_do jail -r "$_safe" 2>/dev/null; then echo "removed"; fi
 		fi
 	fi
 
 	if jail_is_running "$_safe"; then
-		echo "jail -r $_safe"
-		if jail -r "$_safe" 2>/dev/null; then echo "removed"; fi
+		if echo_do jail -r "$_safe" 2>/dev/null; then echo "removed"; fi
 	fi
 }
 
@@ -226,13 +223,18 @@ jail_rename()
 	fi
 
 	echo "renaming $1 to $2"
+	echo_do \
 	service jail stop "$1" || exit 1
 
 	for _f in data jails
 	do
+		echo_do \
 		zfs unmount "$ZFS_VOL/$_f/$1"
+		echo_do \
 		zfs rename "$ZFS_VOL/$_f/$1" "$ZFS_VOL/$_f/$2" || exit 1
+		echo_do \
 		zfs set mountpoint="/$_f/$2" "$ZFS_VOL/$_f/$2" || exit 1
+		echo_do \
 		zfs mount "$ZFS_VOL/$_f/$2"
 	done
 
@@ -240,6 +242,7 @@ jail_rename()
 		-e "/^$1[[:space:]]/ s/$1/$2/" \
 		/etc/jail.conf || exit 1
 
+	echo_do \
 	service jail start "$2"
 
 	echo "Don't forget to update your PF and/or Haproxy rules"
@@ -257,12 +260,15 @@ assure_jail()
 enable_jail()
 {
 	case " $(sysrc -n jail_list) " in *" $1 "*)
-		#echo "jail $1 already enabled at startup"
+		tell_status "jail $1 already enabled at startup"
 		return ;;
 	esac
 
 	tell_status "enabling jail $1 at startup"
+	echo_do \
 	sysrc jail_list+=" $1"
+	tell_status "enabling jail $1 pkg audit"
+	echo_do \
 	sysrc -f /etc/periodic.conf security_status_pkgaudit_jails+=" $1"
 }
 
