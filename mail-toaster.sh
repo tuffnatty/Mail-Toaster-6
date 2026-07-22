@@ -6,7 +6,7 @@ export CI=${CI:-0}
 tell_status()
 {
 	echo; echo "   ***   $1   ***"; echo
-	if [ -t 0 ] && [ "$MT6_TEST_ENV" != "1" ]; then sleep 1; fi
+	if [ -t 0 ] && [ "$MT6_TEST_ENV" != "1" ]; then sleep 0.5; fi
 }
 
 mt6_config_hint()
@@ -54,7 +54,7 @@ mt6-fetch()
 		return
 	fi
 
-	if [ ! -d "$_dir" ]; then mkdir "$_dir"; fi
+	if [ ! -d "$_dir" ]; then echo_do mkdir "$_dir"; fi
 
 	fetch -o "$_dir" -m "$TOASTER_SRC_URL/$_dir/$2"
 }
@@ -173,7 +173,7 @@ stage_unmount()
 	[ -n "$STAGE_MNT" ] || fatal_err "stage_unmount: STAGE_MNT is unset"
 
 	for _fs in $(mount | awk -v p="$STAGE_MNT/" 'index($3, p) == 1 { print $3 }' | sort -ru); do
-		echo "umount $_fs"
+		echo_do \
 		umount "$_fs"
 	done
 }
@@ -263,11 +263,11 @@ create_staged_fs()
 	PROVISION_TIMESTAMP="$(date -uIminutes)"
 	PROVISION_TIMESTAMP="${PROVISION_TIMESTAMP%+*}"
 
-	echo "zfs clone $BASE_SNAP $ZFS_JAIL_VOL/stage"
+	echo_do \
 	zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
 
 	if [ ! -d "$ZFS_JAIL_MNT/stage/data" ]; then
-		tell_status "creating $ZFS_JAIL_MNT/stage/data"
+		echo_do \
 		mkdir "$ZFS_JAIL_MNT/stage/data" || exit 1
 	fi
 
@@ -300,6 +300,7 @@ start_staged_jail()
 	tell_status "stage jail $_name startup"
 
 	# shellcheck disable=2086
+	echo_do \
 	jail -c \
 		name=stage \
 		host.hostname="$_name" \
@@ -318,7 +319,7 @@ start_staged_jail()
 	enable_bsd_cache
 
 	tell_status "updating pkg database"
-	pkg -j stage update
+	echo_do pkg -j stage update -q
 }
 
 tell_settings()
@@ -331,7 +332,9 @@ tell_settings()
 
 proclaim_success()
 {
+	green
 	echo; echo "Success! A new '$1' jail is provisioned"; echo
+	normal
 }
 
 stage_clear_caches()
@@ -358,7 +361,7 @@ seed_pkg_audit()
 {
 	if [ "$TOASTER_PKG_AUDIT" = "1" ]; then
 		tell_status "installing FreeBSD package audit database"
-		stage_exec /usr/sbin/pkg audit -F || echo ''
+		echo_stage_exec /usr/sbin/pkg audit -F || echo ''
 	fi
 }
 
@@ -380,6 +383,7 @@ promote_staged_jail()
 	add_jail_conf "$1" "${2:-""}"
 	#add_automount "$1"
 	[ "$ZFS_SNAPSHOT_PROVISIONED" = 0 ] ||
+		echo_do \
 		zfs snapshot "$ZFS_JAIL_VOL/$1@provisioned"
 
 	tell_status "service jail start $1"
@@ -390,8 +394,8 @@ promote_staged_jail()
 
 stage_pkg_install()
 {
-	echo "pkg -j $SAFE_NAME install -y $*"
-	pkg -j "$SAFE_NAME" install -y "$@"
+	echo_do \
+	pkg -j "$SAFE_NAME" install -qy "$@"
 }
 
 diffnew() { diff "$@" | awk '/^>/ { print substr($0, 2) }'; }
@@ -432,6 +436,7 @@ stage_port_install()
 	stage_pkg_install_and_collect _build_depends_installed $_missing_build_depends pkgconf portconfig
 
 	tell_status "Install $1 via ports"
+	echo_do \
 	stage_exec make -C "/usr/ports/$1" reinstall clean || return 1
 
 	tell_status "port $1 installed"
@@ -444,7 +449,7 @@ stage_port_install()
 stage_sysrc()
 {
 	# don't use -j as this is oft called when jail is not running
-	echo "sysrc -R $STAGE_MNT $*"
+	echo_do \
 	sysrc -R "$STAGE_MNT" "$@"
 }
 
@@ -461,8 +466,12 @@ stage_make_conf()
 
 stage_exec()
 {
-	echo "jexec $SAFE_NAME $*"
 	jexec "$SAFE_NAME" "$@"
+}
+
+echo_stage_exec()
+{
+	echo_do jexec "$SAFE_NAME" "$@"
 }
 
 stage_listening()
@@ -491,6 +500,7 @@ stage_listening()
 stage_test_running()
 {
 	echo "checking for process $1 in staged jail"
+	echo_do \
 	pgrep -j stage "$1" || exit
 	echo "ok"
 }
@@ -501,7 +511,7 @@ unmount_pkg_cache()
 		return
 	fi
 
-	echo "unmount $STAGE_MNT/var/cache/pkg"
+	echo_do \
 	umount "$STAGE_MNT/var/cache/pkg" || exit
 }
 
@@ -609,10 +619,13 @@ stage_setup_tls()
 stage_enable_newsyslog()
 {
 	tell_status "enabling newsyslog"
+	echo_do \
 	sysrc -f "$STAGE_MNT/etc/rc.conf" newsyslog_enable=YES
 	if [ ! -d "$STAGE_MNT/usr/local/etc/newsyslog.conf.d" ]; then
+		echo_do \
 		mkdir "$STAGE_MNT/usr/local/etc/newsyslog.conf.d"
 	fi
+	echo_do \
 	sed_inplace \
 		-e '/^#0.*newsyslog/ s/^#0/0/' \
 		"$STAGE_MNT/etc/crontab"
@@ -635,7 +648,7 @@ unmount_data()
 	local _target
 	for _target in $(mount -t nullfs | awk '{print $3}' | sort -r); do
 		case "$_target" in "$_data_mp"|"$_data_mp"/*)
-			echo umount -t nullfs "$_target"
+			echo_do \
 			umount -t nullfs "$_target"
 			;;
 		esac
@@ -732,6 +745,7 @@ unprovision_last()
 	for _j in $JAIL_ORDERED_LIST; do
 		if zfs_filesystem_exists "$ZFS_JAIL_VOL/$_j.last"; then
 			tell_status "destroying $ZFS_JAIL_VOL/$_j.last"
+			echo_do \
 			zfs destroy "$ZFS_JAIL_VOL/$_j.last"
 		fi
 	done
@@ -742,22 +756,26 @@ unprovision_filesystem()
 	for suffix in ready last; do
 		if zfs_filesystem_exists "$ZFS_JAIL_VOL/$1.$suffix"; then
 			tell_status "destroying $ZFS_JAIL_VOL/$1.$suffix"
+			echo_do \
 			zfs destroy "$ZFS_JAIL_VOL/$1.$suffix" || return 1
 		fi
 	done
 
 	if [ -e "$ZFS_JAIL_VOL/$1/dev/null" ]; then
+		echo_do \
 		umount -t devfs "$ZFS_JAIL_VOL/$1/dev" || return 1
 	fi
 
 	if zfs_filesystem_exists "$ZFS_DATA_VOL/$1"; then
 		tell_status "destroying $ZFS_DATA_MNT/$1"
 		unmount_data "$1" || return 1
+		echo_do \
 		zfs destroy "$ZFS_DATA_VOL/$1" || return 1
 	fi
 
 	if zfs_filesystem_exists "$ZFS_JAIL_VOL/$1"; then
 		tell_status "destroying $ZFS_JAIL_VOL/$1"
+		echo_do \
 		zfs destroy "$ZFS_JAIL_VOL/$1" || return 1
 	fi
 }
@@ -769,17 +787,17 @@ unprovision_filesystems()
 	done
 
 	if zfs_filesystem_exists "$ZFS_JAIL_VOL"; then
-		tell_status "destroying $ZFS_JAIL_VOL"
+		echo_do \
 		zfs destroy "$ZFS_JAIL_VOL" || return 1
 	fi
 
 	if zfs_filesystem_exists "$ZFS_DATA_VOL"; then
-		tell_status "destroying $ZFS_DATA_VOL"
+		echo_do \
 		zfs destroy "$ZFS_DATA_VOL" || return 1
 	fi
 
 	if zfs_filesystem_exists "$BASE_VOL"; then
-		tell_status "destroying $BASE_VOL"
+		echo_do \
 		zfs destroy -r "$BASE_VOL" || return 1
 	fi
 }
@@ -788,7 +806,7 @@ unprovision_files()
 {
 	for _f in /etc/jail.conf /etc/pf.conf /usr/local/sbin/jailmanage; do
 		if [ -f "$_f" ]; then
-			tell_status "rm $_f"
+			echo_do \
 			rm "$_f"
 		fi
 	done
@@ -801,11 +819,14 @@ unprovision_files()
 unprovision_rc()
 {
 	tell_status "disabling jail $1 startup"
+	echo_do \
 	sysrc jail_list-=" $1"
+	echo_do \
 	sysrc -f /etc/periodic.conf security_status_pkgaudit_jails-=" $1"
 
 	if [ -f /etc/jail.conf.d/$1.conf ]; then
 		tell_status "deleting /etc/jail.conf.d/$1.conf"
+		echo_do \
 		rm "/etc/jail.conf.d/$1.conf"
 	fi
 }
@@ -828,6 +849,7 @@ unprovision()
 	service jail stop
 	sleep 1
 
+	echo_do \
 	ipcrm -W
 	unprovision_filesystems
 	unprovision_files

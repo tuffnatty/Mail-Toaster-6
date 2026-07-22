@@ -39,8 +39,8 @@ configure_opendkim()
 	local _opendkim_keyfile="$_dkim_dir/$TOASTER_MAIL_DOMAIN.private"
 	if [ ! -f "$STAGE_MNT$_opendkim_keyfile" ]; then
 		_selector="$(make_selector)"
-		stage_exec opendkim-genkey -b 2048 -h sha256 -D "$_dkim_dir" -s "$_selector" -v -d "$TOASTER_MAIL_DOMAIN"
-		stage_exec mv "$_dkim_dir/$_selector.private" "$_opendkim_keyfile"
+		echo_stage_exec opendkim-genkey -b 2048 -h sha256 -D "$_dkim_dir" -s "$_selector" -v -d "$TOASTER_MAIL_DOMAIN"
+		echo_stage_exec mv "$_dkim_dir/$_selector.private" "$_opendkim_keyfile"
 		tell_status "Please add this TXT record: $(cat "$STAGE_MNT$_dkim_dir/$_selector.txt")"
 	fi
 
@@ -136,8 +136,8 @@ configure_postfix()
 
 	# postconf will break symlinks to files. To get all of postfix to always
 	# look at /data/etc for config, symlink the config dir
-	stage_exec mv /usr/local/etc/postfix /usr/local/etc/postfix.dist
-	stage_exec ln -s /data/etc /usr/local/etc/postfix
+	echo_stage_exec mv /usr/local/etc/postfix /usr/local/etc/postfix.dist
+	echo_stage_exec ln -s /data/etc /usr/local/etc/postfix
 
 	if [ -n "$TOASTER_NRPE" ]; then
 		stage_sysrc nrpe_enable=YES

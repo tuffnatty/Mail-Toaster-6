@@ -3,7 +3,38 @@
 # bump version when a change in mail toaster effects provision scripts
 mt6_version() { echo "20260403"; }
 
-tell_status() { echo; echo "   ***   $1   ***"; echo; }
+# cleaner output
+red() { printf "\033[31m"; }
+dark_green() { printf "\033[32m"; }
+green() { printf "\033[92m"; }
+yellow() { printf "\033[33m"; }
+normal() { printf "\033[0m"; }
+
+dumbquote() { printf '%s' "$1" | sed "s/'/'\\\\''/g;1s/^/'/;\$s/\$/'/"; }  # http://www.etalabs.net/sh_tricks.html
+quote() {
+	local _s _sep=
+	# shellcheck disable=SC3050
+	if _s="$(printf ' %q' "$@" 2>/dev/null)"; then
+		printf '%s' "${_s# }"
+	else
+		for _arg; do
+			case "$_arg" in
+				""|*[!A-Za-z0-9@%_:,./=+-]*) printf "$_sep%s" "$(dumbquote "$_arg")" ;;
+				*) printf "$_sep%s" "$_arg" ;;
+			esac
+			_sep=' '
+		done
+	fi
+}
+
+echo_do()
+{
+	printf '%s\n' "$(dark_green)$(quote "$@")$(normal)" 1>&2
+	"$@"
+	return $?
+}
+
+tell_status() { yellow; echo; echo "   ***   $1   ***"; echo; normal; } 1>&2
 
 mt6_version_check()
 {
@@ -36,7 +67,7 @@ store_config()
 	local _operation=${2:-""}
 
 	if [ ! -d "$(dirname "$1")" ]; then
-		tell_status "creating $(dirname "$1")"
+		echo_do \
 		mkdir -p "$(dirname "$1")"
 	fi
 
@@ -44,9 +75,10 @@ store_config()
 
 	if [ ! -f "$1" ] || [ "$_operation" = "overwrite" ]; then
 		tell_status "installing $1"
+		echo_do \
 		cp "$1.mt6" "$1"
 	elif [ "$_operation" = "append" ]; then
-		cat "$1.mt6" >> "$1"
+		echo_do tee -a "$1" < "$1.mt6" >/dev/null
 	else
 		tell_status "preserving $1"
 	fi
@@ -56,7 +88,7 @@ store_exec()
 {
 	# $1 - path to file, STDIN is file contents
 	if [ ! -d "$(dirname "$1")" ]; then
-		tell_status "creating $(dirname "$1")"
+		echo_do \
 		mkdir -p "$(dirname "$1")" || exit 1
 	fi
 
@@ -165,7 +197,8 @@ preserve_file()
 
 	if [ -f "$_active_cfg" ]; then
 		tell_status "preserving $_active_cfg"
-		[ -d "$(dirname "$_stage_cfg")" ] || mkdir -p "$(dirname "$_stage_cfg")"
+		[ -d "$(dirname "$_stage_cfg")" ] || echo_do mkdir -p "$(dirname "$_stage_cfg")"
+		echo_do \
 		cp -p "$_active_cfg" "$_stage_cfg" || return 1
 		return
 	fi

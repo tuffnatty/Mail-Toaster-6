@@ -448,12 +448,16 @@ EO_PF_RULES
 			/etc/pf.conf
 	fi
 
-	kldstat -q -m pf || kldload pf
+	echo; echo "/etc/pf.conf has been installed"; echo
+
+	kldstat -q -m pf || echo_do kldload pf
 
 	grep -q ^pf_enable /etc/rc.conf || sysrc pf_enable=YES
 	if ! /sbin/pfctl -s Running; then
+		echo_do \
 		/etc/rc.d/pf start
 	else
+		echo_do \
 		/sbin/pfctl -f /etc/pf.conf
 	fi
 
@@ -465,18 +469,22 @@ install_jailmanage()
 	if [ -s /usr/local/bin/jailmanage ]; then return; fi
 
 	tell_status "installing jailmanage"
-	if [ ! -d "/usr/local/bin" ]; then mkdir -p "/usr/local/bin"; fi
+	if [ ! -d "/usr/local/bin" ]; then echo_do mkdir -p "/usr/local/bin"; fi
+	echo_do \
 	fetch -o /usr/local/bin/jailmanage https://raw.githubusercontent.com/msimerson/jailmanage/master/jailmanage.sh
+	echo_do \
 	chmod 755 /usr/local/bin/jailmanage
 }
 
 enable_jails_start()
 {
 	tell_status "enabling jails"
+	echo_do \
 	sysrc jail_enable=YES
 
 	if ! grep -q jail_reverse_stop /etc/rc.conf; then
 		tell_status "reverse jails when shutting down"
+		echo_do \
 		sysrc jail_reverse_stop=YES
 	fi
 
@@ -505,21 +513,23 @@ update_ports_tree()
 	if [ -d "/usr/ports/.git" ]; then
 		if is_installed gitup; then
 			tell_status "updating FreeBSD ports tree (gitup)"
+			echo_do \
 			gitup ports
 		elif is_installed git; then
 			tell_status "updating FreeBSD ports tree (git)"
-			cd "/usr/ports/" || return
-			git pull
-			cd - || return
+			echo_do \
+			git -C /usr/ports pull
 		fi
 	else
 		if is_installed portsnap; then
 			tell_status "updating FreeBSD ports tree (portsnap)"
+			echo_do \
 			portsnap fetch
 
 			if [ -d /usr/ports/mail/vpopmail ]; then
-				portsnap update || portsnap extract
+				echo_do portsnap update || echo_do portsnap extract
 			else
+				echo_do \
 				portsnap extract
 			fi
 		fi
@@ -535,6 +545,7 @@ update_freebsd()
 
 	if grep -q '^Components src' /etc/freebsd-update.conf; then
 		tell_status "remove src from freebsd-update"
+		echo_do \
 		sed_inplace -e '/^Components/ s/src //' /etc/freebsd-update.conf
 	fi
 
@@ -542,21 +553,26 @@ update_freebsd()
 		echo "FreBSD pkgbase detected"
 	else
 		tell_status "updating FreeBSD with security patches"
+		echo_do \
 		freebsd-update fetch install
 
 		tell_status "clearing freebsd-update cache"
+		echo_do \
 		rm -rf /var/db/freebsd-update/*
 	fi
 
 	tell_status "updating FreeBSD pkg collection"
+	echo_do \
 	pkg update
 
 	if ! pkg info -e ca_root_nss; then
 		tell_status "install CA root certs, so https URLs work"
+		echo_do \
 		pkg install -y ca_root_nss
 	fi
 
 	tell_status "upgrading installed FreeBSD packages"
+	echo_do \
 	pkg upgrade -y
 
 	update_ports_tree
@@ -571,11 +587,13 @@ plumb_jail_nic()
 
 	if ! grep -q cloned_interfaces /etc/rc.conf; then
 		tell_status "plumb lo1 interface at startup"
+		echo_do \
 		sysrc cloned_interfaces+=lo1
 	fi
 
 	if ifconfig lo1 2>&1 | grep -q 'does not exist'; then
 		tell_status "plumb lo1 interface"
+		echo_do \
 		ifconfig lo1 create description MT6-jails
 	fi
 }
@@ -584,21 +602,25 @@ assign_syslog_ip()
 {
 	if ! sysrc -cq ifconfig_lo1; then
 		tell_status "adding syslog IPv4 to lo1"
+		echo_do \
 		sysrc ifconfig_lo1="$JAIL_NET_PREFIX.1 netmask 255.255.255.0"
 	fi
 
 	if ! sysrc -cq ifconfig_lo1_ipv6; then
 		tell_status "adding syslog IPv6 to lo1"
+		echo_do \
 		sysrc ifconfig_lo1_ipv6="$JAIL_NET6:1/112"
 	fi
 
 	if ! ifconfig lo1 2>&1 | grep -q "$JAIL_NET_PREFIX.1 "; then
 		echo "assigning $JAIL_NET_PREFIX.1 to lo1"
+		echo_do \
 		ifconfig lo1 "$JAIL_NET_PREFIX.1" netmask 255.255.255.0
 	fi
 
 	if ! ifconfig lo1 2>&1 | grep -q "$JAIL_NET6:1 "; then
 		echo "assigning $JAIL_NET6:1 to lo1"
+		echo_do \
 		ifconfig lo1 inet6 "$JAIL_NET6:1/112"
 	fi
 }
@@ -609,6 +631,7 @@ configure_etc_hosts()
 	# hosts DNS on *every* incoming syslog message.
 	if grep -q "^$JAIL_NET_PREFIX" /etc/hosts; then
 		tell_status "removing /etc/hosts toaster additions"
+		echo_do \
 		sed_inplace -e "/^$JAIL_NET_PREFIX.*/d" /etc/hosts
 	fi
 
@@ -632,7 +655,7 @@ update_mt6()
 }
 
 update_host() {
-	sysrc -c -q background_fsck=NO || sysrc -q background_fsck=NO
+	sysrc -c -q background_fsck=NO || echo_do sysrc -q background_fsck=NO
 	update_mt6
 	update_freebsd
 	configure_pkg_latest ""
@@ -654,7 +677,7 @@ update_host() {
 	configure_etc_hosts
 	configure_csh_shell ""
 	configure_bourne_shell ""
-	test -e "/etc/localtime" || tzsetup
+	test -e "/etc/localtime" || echo_do tzsetup
 	check_global_listeners
 	echo; echo "Success! Your host is ready to install Mail Toaster 6!"; echo
 }

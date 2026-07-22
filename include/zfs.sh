@@ -29,6 +29,7 @@ zfs_create_fs()
 	if zfs_filesystem_exists "$1"; then
 		[ "${ZFS_SNAPSHOT_DATA:-0}" = 0 ] ||
 			[ "$(zfs list -Hpo written "$1")" = 0 ] ||
+				echo_do \
 				zfs snapshot "$1@before-$PROVISION_TIMESTAMP"
 		return
 	fi
@@ -37,26 +38,26 @@ zfs_create_fs()
 
 	if echo "$1" | grep -q "$ZFS_DATA_VOL"; then
 		if ! zfs_filesystem_exists "$ZFS_DATA_VOL"; then
-			tell_status "zfs create -o mountpoint=$ZFS_DATA_MNT $ZFS_DATA_VOL"
+			echo_do \
 			zfs create -o mountpoint="$ZFS_DATA_MNT" "$ZFS_DATA_VOL" || exit 1
 		fi
 	fi
 
 	if echo "$1" | grep -q "$ZFS_JAIL_VOL"; then
 		if ! zfs_filesystem_exists "$ZFS_JAIL_VOL"; then
-			tell_status "zfs create -o mountpoint=$ZFS_JAIL_MNT $ZFS_JAIL_VOL"
+			echo_do \
 			zfs create -o mountpoint="$ZFS_JAIL_MNT" "$ZFS_JAIL_VOL" || exit 1
 		fi
 	fi
 
 	if [ -z "$2" ]; then
-		tell_status "zfs create $1"
+		echo_do \
 		zfs create "$1" || exit 1
 		echo "done"
 		return
 	fi
 
-	tell_status "zfs create -o mountpoint=$2 $1"
+	echo_do \
 	zfs create -o mountpoint="$2" "$1" || exit 1
 	echo "done"
 }
@@ -69,10 +70,10 @@ zfs_destroy_fs()
 	if ! zfs_filesystem_exists "$_fs"; then return; fi
 
 	if [ -n "$_flags" ]; then
-		echo "zfs destroy $_flags $_fs"
+		echo_do \
 		zfs destroy "$_flags" "$_fs" || exit 1
 	else
-		echo "zfs destroy $_fs"
+		echo_do \
 		zfs destroy "$_fs" || exit 1
 	fi
 }
@@ -121,12 +122,12 @@ rename_active_to_last()
 
 	local _tries=0
 	local _zfs_rename="zfs rename $ACTIVE $LAST"
-	echo "$_zfs_rename"
-	until $_zfs_rename; do
+	until echo_do $_zfs_rename; do
 		if [ "$_tries" -gt 3 ]; then
 			echo "trying to force rename ($_tries)"
 			_zfs_rename="zfs rename -f $ACTIVE $LAST"
 		fi
+		echo_do \
 		/bin/sync
 		echo "waiting for ZFS filesystem to quiet ($_tries)"
 		_tries=$((_tries + 1))
@@ -137,5 +138,6 @@ rename_active_to_last()
 rename_ready_to_active()
 {
 	echo "zfs rename $ZFS_JAIL_VOL/${1}.ready $ZFS_JAIL_VOL/$1"
+	echo_do \
 	zfs rename "$ZFS_JAIL_VOL/${1}.ready" "$ZFS_JAIL_VOL/$1" || exit 1
 }

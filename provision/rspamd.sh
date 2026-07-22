@@ -264,6 +264,7 @@ configure_rspamd()
 
 	for _d in "local.d" "override.d"; do
 		if [ ! -d "$RSPAMD_ETC/${_d}" ]; then
+			echo_d \
 			mkdir "$RSPAMD_ETC/${_d}"
 		fi
 	done
