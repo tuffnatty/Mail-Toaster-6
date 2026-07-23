@@ -13,6 +13,7 @@ RSPAMD_ETC="$STAGE_MNT/usr/local/etc/rspamd"
 install_rspamd()
 {
 	tell_status "installing rspamd"
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || [ "$(freebsd_major "$STAGE_MNT")" -ge 15 ] || stage_pkg_install FreeBSD-elftoolchain
 	stage_pkg_install rspamd
 
 	if [ "$TOASTER_USE_TMPFS" = 1 ]; then

@@ -64,12 +64,19 @@ install_postfix()
 	echo_stage_exec ln -s /data/spool /var/spool/postfix
 
 	local _rt_deps=""
-	[ "${TOASTER_PKGBASE:-0}" = 0 ] || _rt_deps="
-		FreeBSD-libexecinfo
-		FreeBSD-sendmail
-	"
+	if [ "${TOASTER_PKGBASE:-0}" != 0 ]; then
+		_rt_deps="
+			FreeBSD-libexecinfo
+			FreeBSD-sendmail"
+		if [ "$(freebsd_major "$STAGE_MNT")" -ge 15 ]; then
+			_rt_deps="$_rt_deps
+				FreeBSD-audit
+				FreeBSD-zlib
+			"
+		fi
+	fi
 	tell_status "installing postfix runtime dependencies"
-	stage_pkg_install opendkim postfix-mysql
+	stage_pkg_install opendkim postfix-mysql $_rt_deps
 	echo_stage_exec install -m 0644 /usr/local/share/postfix/mailer.conf.postfix /usr/local/etc/mail/mailer.conf
 
 	if [ -n "$TOASTER_NRPE" ]; then

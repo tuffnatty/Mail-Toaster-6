@@ -4,6 +4,11 @@ set -e
 
 . mail-toaster.sh
 
+[ "${TOASTER_PKGBASE:-0}" != 1 ] || export BASE_NAME="pkg$BASE_NAME"
+export BASE_VOL="$ZFS_JAIL_VOL/$BASE_NAME"
+export BASE_SNAP="${BASE_VOL}@${FBSD_PATCH_VER}"
+export BASE_MNT="$ZFS_JAIL_MNT/$BASE_NAME"
+
 mt6-include shell
 mt6-include mta
 mt6-include editor
@@ -23,8 +28,42 @@ create_base_filesystem()
 	zfs_create_fs "$BASE_VOL"
 }
 
+freebsd_pkgbase()
+{
+		echo_do mkdir -p "$BASE_MNT/usr/share/certs" "$BASE_MNT/usr/share/keys"
+		echo_do cp -a /usr/share/keys/pkg "$BASE_MNT/usr/share/keys/"
+		local _ver _audit_lib=FreeBSD-audit-lib _repo_name=FreeBSD-base
+		if jail_is_running bsd_cache; then _repo_name=FreeBSD-base; fi
+		_ver="$(freebsd_major "$BASE_MNT")"
+		if [ "$_ver" -lt 15 ]; then
+			_audit_lib=FreeBSD-libbsm
+		else
+			echo_do cp -a /usr/share/keys/pkgbase-$_ver "$BASE_MNT/usr/share/keys/"
+			echo_do cp -a /usr/share/certs/trusted /usr/share/certs/untrusted "$BASE_MNT/usr/share/certs/"
+		fi
+		configure_pkg_latest "$BASE_MNT"
+		echo_do pkg -r "$BASE_MNT" "$1" -r "$_repo_name" -y \
+			FreeBSD-acct \
+			$_audit_lib \
+			FreeBSD-fetch \
+			FreeBSD-libarchive \
+			FreeBSD-libucl \
+			FreeBSD-openssl-lib \
+			FreeBSD-periodic \
+			FreeBSD-pkg-bootstrap \
+			FreeBSD-rc \
+			FreeBSD-runtime \
+			FreeBSD-syslogd \
+			FreeBSD-utilities
+}
+
 freebsd_update()
 {
+	if [ "${TOASTER_PKGBASE:-0}" = 1 ]; then
+		freebsd_pkgbase upgrade
+		return
+	fi
+
 	if [ "$TOASTER_BASE_METHOD" = "pkgbase" ]; then return; fi
 
 	if [ ! -t 0 ]; then
@@ -47,6 +86,11 @@ install_freebsd()
 {
 	if [ -f "$BASE_MNT/COPYRIGHT" ]; then
 		echo "FreeBSD already installed"
+		return
+	fi
+
+	if [ "${TOASTER_PKGBASE:-0}" = 1 ]; then
+		freebsd_pkgbase install
 		return
 	fi
 
@@ -235,6 +279,7 @@ configure_base()
 		syslogd_flags="-s -cc" \
 		update_motd=NO
 
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || \
 	configure_pkg_latest "$BASE_MNT"
 	configure_tls_dirs
 	configure_tls_dhparams
@@ -267,7 +312,7 @@ monthly_output="$TOASTER_ADMIN_EMAIL"
 
 security_show_success="NO"
 security_show_info="NO"
-security_status_baseaudit_enable="NO"
+security_status_baseaudit_enable="YES"
 security_status_pkgaudit_enable="NO"
 security_status_pkgaudit_quiet="YES"
 daily_status_security_inline="NO"
@@ -331,6 +376,9 @@ install_base()
 	tell_status "installing packages desired in every jail"
 	stage_pkg_install $TOASTER_BASE_PKGS
 
+	[ "${TOASTER_PKGBASE:-0}" = 1 ] || \
+	stage_exec newaliases
+
 	if [ "$BOURNE_SHELL" = "all" ]; then
 		install_bash "$BASE_MNT"
 		install_zsh
@@ -372,6 +420,7 @@ install_freebsd
 echo_do rm "$BASE_MNT/usr/local/bin/pkg-static" || true
 freebsd_update
 configure_base
+JAIL_START_EXTRA="allow.chflags" \
 start_staged_jail base "$BASE_MNT"
 install_base
 echo_do \

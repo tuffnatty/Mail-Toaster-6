@@ -271,6 +271,9 @@ create_staged_fs()
 {
 	cleanup_staged_fs
 
+	local _base_snap="$BASE_SNAP"
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || \
+		_base_snap="$ZFS_JAIL_VOL/pkgbase-$FBSD_REL_VER@${FBSD_PATCH_VER}"
 	tell_status "stage jail filesystem setup"
 
 	PROVISION_TIMESTAMP="$(date -uIminutes)"
@@ -279,12 +282,13 @@ create_staged_fs()
 	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
 		local _name="$1.$PROVISION_TIMESTAMP"
 		echo_do \
-		zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/$_name" || exit 1
+		zfs clone "$_base_snap" "$ZFS_JAIL_VOL/$_name" || exit 1
 		ln -sfh "$_name" "$ZFS_JAIL_MNT/stage"
 	else
 		echo_do \
-		zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
+		zfs clone "$_base_snap" "$ZFS_JAIL_VOL/stage" || exit 1
 	fi
+
 	if [ ! -d "$ZFS_JAIL_MNT/stage/data" ]; then
 		echo_do \
 		mkdir "$ZFS_JAIL_MNT/stage/data" || exit 1
@@ -338,6 +342,8 @@ start_staged_jail()
 	enable_bsd_cache
 
 	tell_status "updating pkg database"
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || echo_do certctl -D "$_path" rehash
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || echo_do pkg -j stage bootstrap -y
 	echo_do pkg -j stage update -q
 }
 
@@ -434,9 +440,50 @@ stage_pkg_install_and_collect() {
 	setvar "$_var_name" "$(pkg -j "$SAFE_NAME" info -q | diffnew /tmp/mt6-before-build-depends.tmp -)"
 }
 
+stage_pkg_install_and_collect_build_deps() {
+	local _add_deps=""
+	if [ "${TOASTER_PKGBASE:-0}" != 0 ]; then
+		_add_deps="
+			FreeBSD-blocklist-dev
+			FreeBSD-clang
+			FreeBSD-clibs-dev
+			FreeBSD-libcompiler_rt-dev
+			FreeBSD-libexecinfo
+			FreeBSD-lld
+			FreeBSD-mtree
+			FreeBSD-runtime-dev
+		"
+		if [ "$(freebsd_major "$STAGE_MNT")" -lt 15 ]; then
+			_add_deps="$_add_deps
+				FreeBSD-elftoolchain
+				FreeBSD-libbsm-dev
+			"
+		else
+			_add_deps="$_add_deps
+				FreeBSD-bmake
+				FreeBSD-toolchain
+			"
+		fi
+	fi
+	stage_pkg_install_and_collect "$@" $_add_deps
+}
+
 missing_packages()
 {
-	for depend; do pkg -j "$SAFE_NAME" info -q | grep -q "${depend#*/}-[0-9]" || echo "$depend"; done
+	for depend; do
+		if [ x$depend != x ]; then  # strip spaces, quoting won't work
+			pkg -j "$SAFE_NAME" info -q | grep -q "${depend#*/}-[0-9]" || echo "$depend"
+		fi
+	done
+}
+
+freebsd_osversion()
+{
+	local _param_h="$1/usr/include/sys/param.h"
+	# On a minimal pkgbase install, there is no own sys/param.h. Use the one from the host
+	[ -f "$1$_param_h" ] || _param_h="${_param_h#"$1"}"
+
+	awk '/^\#define[[:blank:]]__FreeBSD_version/ {print $3}' < "$_param_h"
 }
 
 stage_port_install()
@@ -446,20 +493,22 @@ stage_port_install()
 
 	tell_status "Install runtime dependencies via pkg"
 	local _run_depends _missing_run_depends
-	_run_depends="$(jexec "$SAFE_NAME" make -C "$_portdir" run-depends-list | sed 's,^/usr/ports/,,' | sort -n)"
+	local _add_make_args=""
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || _add_make_args=OSVERSION="$(freebsd_osversion "$STAGE_MNT")"
+	_run_depends="$(echo_stage_exec make -C "$_portdir" $_add_make_args run-depends-list | sed 's,^/usr/ports/,,' | sort -n)"
 	_missing_run_depends="$(missing_packages $_run_depends)"
 	[ -z "$_missing_run_depends" ] || stage_pkg_install $_missing_run_depends
 
 	tell_status "Install missing build dependencies via pkg"
 	local _build_depends _build_depends_installed _missing_build_depends
-	_build_depends="$(jexec "$SAFE_NAME" make -C "$_portdir" build-depends-list | sed 's,^/usr/ports/,,' | sort -n)"
+	_build_depends="$(echo_stage_exec make -C "$_portdir" $_add_make_args build-depends-list | sed 's,^/usr/ports/,,' | sort -n)"
 	_missing_build_depends="$(missing_packages $_build_depends)"
 
 	stage_pkg_install_and_collect _build_depends_installed $_missing_build_depends pkgconf portconfig
 
 	tell_status "Install $1 via ports"
 	echo_do \
-	stage_exec make -C "/usr/ports/$1" reinstall clean || return 1
+	stage_exec make -C "/usr/ports/$1" $_add_make_args reinstall clean || return 1
 
 	tell_status "port $1 installed"
 	if [ -n "$_build_depends_installed" ]; then

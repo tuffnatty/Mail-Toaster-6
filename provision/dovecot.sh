@@ -30,7 +30,29 @@ install_dovecot()
 	fi
 
 	tell_status "installing dovecot package"
-	stage_pkg_install dovecot dovecot-pigeonhole curl perl5 gmake mysql84-client
+
+	local _rt_deps="" _build_deps=""
+	if [ "${TOASTER_PKGBASE:-0}" != 0 ]; then
+		_rt_deps="
+			FreeBSD-libexecinfo
+			FreeBSD-tcpd"
+		_build_deps="
+			FreeBSD-libexecinfo-dev
+			FreeBSD-tcpd-dev"
+		if [ "$(freebsd_major "$STAGE_MNT")" -lt 15 ]; then
+			_build_deps="$_build_deps
+				FreeBSD-openssl-lib-dev"
+		else
+			_rt_deps="$_rt_deps
+				FreeBSD-audit
+				FreeBSD-zlib"
+			_build_deps="$_build_deps
+				FreeBSD-audit-dev
+				FreeBSD-openssl-dev
+				FreeBSD-zlib-dev"
+		fi
+	fi
+	stage_pkg_install curl perl5 gmake mysql80-client zstd pkgconf $_rt_deps
 
 	tell_status "configure dovecot port options"
 	stage_make_conf dovecot2_SET 'mail_dovecot2_SET=MYSQL LIBWRAP EXAMPLES'
@@ -40,11 +62,17 @@ install_dovecot()
 		echo 'DEFAULT_VERSIONS+=ssl=libressl' >> "$STAGE_MNT/etc/make.conf"
 	fi
 
+	tell_status "installing build dependencies"
+	local build_deps_installed
+	stage_pkg_install_and_collect_build_deps build_deps_installed \
+		$_build_deps portconfig
+
 	tell_status "building dovecot"
 
 	export BATCH=${BATCH:="1"}
 	stage_port_install mail/dovecot
 	stage_port_install mail/dovecot-pigeonhole
+	echo_do pkg -j stage remove -qy $build_deps_installed
 }
 
 configure_dovecot_local_conf() {

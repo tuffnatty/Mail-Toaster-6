@@ -248,6 +248,7 @@ test_nginxfront()
 	sockstat -l -4 -6 -p 80 -j "$(jls -j stage jid)"
 }
 
+export TOASTER_PKGBASE=1
 base_snapshot_exists || exit
 create_staged_fs nginxfront
 start_staged_jail nginxfront

@@ -127,7 +127,7 @@ get_random_pass()
 freebsd_major()
 {
 	# with a root dir, report the target jail's version rather than the host's
-	if [ -n "$1" ]; then
+	if [ -n "$1" ] && [ -x "$1/bin/freebsd-version" ]; then
 		chroot "$1" /bin/freebsd-version | cut -f1 -d.
 	else
 		/bin/freebsd-version | cut -f1 -d.
@@ -156,15 +156,19 @@ configure_pkg_repos() {
 	# Our desired config:
 	# FreeBSD.conf: default priority
 	# FreeBSD-kmods.conf: enabled=no for jails
+	# FreeBSD-base.conf: default priority, enabled=yes for pkgbase jails
 	# MT6.conf: priority=5, bsd_cache should be running
 	# MT6-kmods.conf: priority=5, bsd_cache should be running, enabled=no for jails
+	# MT6-base.conf: name=FreeBSD-base priority=5, pkgbase, bsd_cache should be running
 	# $PKG_REPO_NAME.conf: priority=10
-	local _cache_on=no _kmods_on=no _cache_kmods_on=no
+	local _base_on=no _cache_on=no _kmods_on=no _cache_base_on=no _cache_kmods_on=no
 	[ -n "$_root" ] || _kmods_on=yes
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || _base_on=yes
 	if jail_is_running bsd_cache; then
 		tell_status "switching pkg to bsd_cache"
 		_cache_on=yes
 		_cache_kmods_on="$_kmods_on"
+		_cache_base_on="$_base_on"
 	fi
 
 	local REPODIR="$1/usr/local/etc/pkg/repos"
@@ -177,13 +181,16 @@ configure_pkg_repos() {
 	local _fbsd_url="pkg+http://pkg.FreeBSD.org"
 	local _ports="\${ABI}/$TOASTER_PKG_BRANCH"
 	local _kmods="\${ABI}/kmods_${TOASTER_PKG_BRANCH}_\${VERSION_MINOR}"
+	local _base="\${ABI}/base_release_\${VERSION_MINOR}"
 
 	[ -f "$REPODIR/$_repo_name.conf" ] ||  # preserve main conf
 	repo_conf "$_repo_name"		"$_fbsd_url/$_ports"	0 yes
 	repo_conf "$_repo_name-kmods"	"$_fbsd_url/$_kmods"	0 "$_kmods_on"
+	repo_conf FreeBSD-base		"$_fbsd_url/$_base"	0 "$_base_on"
 
 	repo_conf MT6			"http://pkg/$_ports"	5 "$_cache_on"
 	repo_conf MT6-kmods		"http://pkg/$_kmods"	5 "$_cache_kmods_on"
+	repo_conf MT6-base		"http://pkg/$_base"	5 "$_cache_base_on"
 
 	[ -z "$PKG_REPO_NAME" ] || [ -z "$PKG_REPO_URL" ] ||
 	repo_conf "$PKG_REPO_NAME"	"$PKG_REPO_URL/$_ports"	10 yes
@@ -237,6 +244,14 @@ nameserver $(get_jail_ip6 dns)
 EO_RESOLV
 
 	configure_pkg_repos "$_root"
+
+	local _repo_dir="$_root/usr/local/etc/pkg/repos"
+	store_config "$_repo_dir/MT6-base.conf" <<EO_PKG_MT6_BASE
+MT6-base: {
+	url: "http://pkg/\${ABI}/base_release_\${VERSION_MINOR}",
+	enabled: yes
+}
+EO_PKG_MT6_BASE
 
 	# cache pkg audit vulnerability db
 	sed_inplace \

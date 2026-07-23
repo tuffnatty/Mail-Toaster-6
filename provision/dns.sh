@@ -15,6 +15,10 @@ export JAIL_FSTAB=""
 install_unbound()
 {
 	tell_status "installing unbound"
+
+	# After https://github.com/freebsd/freebsd-src/commit/560af6b43e2a86e591e94bea99777630cd5f84fd
+	# we need to install FreeBSD-pam
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-pam
 	stage_pkg_install unbound
 }
 

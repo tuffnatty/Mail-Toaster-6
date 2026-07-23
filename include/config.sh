@@ -31,6 +31,7 @@ mt6_defaults()
 	export FBSD_MIRROR=${FBSD_MIRROR:-"ftp://ftp.freebsd.org"}
 
 	export TLS_LIBRARY=${TLS_LIBRARY:-""}
+	export TOASTER_PKGBASE=${TOASTER_PKGBASE:-0}
 	export TOASTER_BASE_MTA=${TOASTER_BASE_MTA:-""}
 	export TOASTER_BASE_PKGS=${TOASTER_BASE_PKGS:-"pkg ca_root_nss"}
 	export TOASTER_BUILD_DEBUG=${TOASTER_BUILD_DEBUG:-"0"}
@@ -146,6 +147,7 @@ export ZFS_DATA_MNT="/data"
 export ZFS_REPLICATION_FRIENDLY="0"  # set to 1 to disable zfs renames and use symlinks instead
 export ZFS_SNAPSHOT_DATA="0"  # set to 1 to snapshot modified /data volumes before provisioning
 export ZFS_SNAPSHOT_PROVISIONED="0"  # set to 1 to snapshot every freshly provisioned jail
+export TOASTER_PKGBASE="0"  # set to 1 to use pkgbase
 export TOASTER_EDITOR="vim"
 export TOASTER_EDITOR_PORT="vim-tiny"
 export TOASTER_INGRESS_JAIL="haproxy"

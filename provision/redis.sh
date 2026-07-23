@@ -11,6 +11,9 @@ export JAIL_FSTAB=""
 install_redis()
 {
 	tell_status "installing redis"
+	# After https://github.com/freebsd/freebsd-src/commit/560af6b43e2a86e591e94bea99777630cd5f84fd
+	# we need to install FreeBSD-pam
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-libexecinfo FreeBSD-pam
 	stage_pkg_install redis || exit
 
 	if [ "$TOASTER_USE_TMPFS" = 1 ]; then
@@ -20,6 +23,8 @@ chown redis:redis /var/run/redis
 EO_RC_LOCAL
 		stage_exec service local start
 	fi
+
+	echo_do pkg -j stage autoremove -y
 }
 
 configure_redis()
@@ -30,6 +35,7 @@ configure_redis()
 		mkdir -p "$STAGE_MNT/data/$_dir"
 	done
 
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-newsyslog
 	stage_enable_newsyslog
 
 	mkdir -p "$STAGE_MNT/usr/local/etc/newsyslog.conf.d"
@@ -61,6 +67,7 @@ test_redis()
 	stage_listening 6379 3 2
 }
 
+export TOASTER_PKGBASE=1
 base_snapshot_exists
 create_staged_fs redis
 start_staged_jail redis

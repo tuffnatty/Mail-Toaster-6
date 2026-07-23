@@ -141,6 +141,7 @@ install_roundcube()
 		_php_modules="$_php_modules pdo_mysql"
 	fi
 
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-kerberos-lib
 	install_php $PHP_VER "$_php_modules"
 	install_nginx
 
@@ -160,6 +161,7 @@ install_roundcube()
 
 	install_roundcube_plugins
 	install_logo
+	echo_do pkg -j stage autoremove -y
 }
 
 configure_nginx_server()
@@ -402,6 +404,7 @@ test_roundcube()
 	echo "it worked"
 }
 
+export TOASTER_PKGBASE=1
 tell_settings ROUNDCUBE
 base_snapshot_exists || exit
 create_staged_fs roundcube
