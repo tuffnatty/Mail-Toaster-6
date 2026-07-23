@@ -80,6 +80,7 @@ configure_bourne_shell()
 	_f="$1/etc/profile.d/toaster.sh"
 	if ! grep -qs ^PS1 "$_f"; then
 		tell_status "customizing bourne shell prompt"
+		mkdir -p "$1/etc/profile.d"  # may be missing on pkgbase (FreeBSD-mtree package)
 		cat <<EO_BOURNE_SHELL > "$_f"
 export EDITOR="$TOASTER_EDITOR"
 export BLOCKSIZE=K;

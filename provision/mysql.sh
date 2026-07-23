@@ -35,6 +35,9 @@ install_mysql()
 install_mariadb()
 {
 	tell_status "installing mariadb"
+	# After https://github.com/freebsd/freebsd-src/commit/560af6b43e2a86e591e94bea99777630cd5f84fd
+	# we need to install FreeBSD-pam
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-libexecinfo FreeBSD-tcpd FreeBSD-pam
 	stage_pkg_install mariadb1011-server
 }
 

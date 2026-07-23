@@ -83,11 +83,13 @@ zfs_destroy_fs()
 
 base_snapshot_exists()
 {
-	if zfs_snapshot_exists "$BASE_SNAP"; then
+	local _base_snap="$BASE_SNAP"
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || _base_snap="$ZFS_JAIL_VOL/pkgbase-$FBSD_REL_VER@${FBSD_PATCH_VER}"
+	if zfs_snapshot_exists "$_base_snap"; then
 		return 0
 	fi
 
-	echo "$BASE_SNAP does not exist, use 'provision base' to create it"
+	echo "$_base_snap does not exist, use 'provision base' to create it"
 	return 1
 }
 
