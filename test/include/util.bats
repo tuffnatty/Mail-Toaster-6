@@ -19,10 +19,16 @@ setup() {
 }
 
 @test "freebsd_major - root dir chroots and extracts major version" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  mkdir "$tmpdir/bin"
+  touch "$tmpdir/bin/freebsd-version"
+  chmod a+x "$tmpdir/bin/freebsd-version"
   chroot() { echo "14.2-RELEASE-p1"; }
-  run freebsd_major /stage
+  run freebsd_major "$tmpdir"
   assert_success
   assert_output "14"
+
+  rm -rf "$tmpdir"
 }
 
 @test "dec_to_hex - 255" {

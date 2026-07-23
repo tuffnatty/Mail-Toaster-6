@@ -43,6 +43,7 @@ install_nginx()
 
 install_nginx_newsyslog()
 {
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-newsyslog
 	stage_enable_newsyslog
 
 	tell_status "enabling nginx log file rotation"
