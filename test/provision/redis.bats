@@ -21,6 +21,8 @@ bind 127.0.0.1
 protected-mode yes
 EOF
 
+  pkg() { :; }
+
   provision_run redis
 }
 
