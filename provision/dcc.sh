@@ -51,6 +51,9 @@ install_dcc()
 	install_dcc_port_options
 
 	tell_status "install dcc"
+	# After https://github.com/freebsd/freebsd-src/commit/560af6b43e2a86e591e94bea99777630cd5f84fd
+	# we need to install FreeBSD-pam
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-pam
 	stage_pkg_install_and_collect_build_deps build_deps_installed
 	stage_port_install mail/dcc-dccd
 	echo_do \

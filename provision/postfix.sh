@@ -22,10 +22,22 @@ install_postfix()
 	stage_exec chown root:wheel /data/spool
 	stage_exec ln -s /data/spool /var/spool/postfix
 
+	if [ "${TOASTER_PKGBASE:-0}" != 0 ]; then
+		_rt_deps="
+			FreeBSD-libexecinfo
+			FreeBSD-sendmail"
+		if [ "$(freebsd_major "$STAGE_MNT")" -ge 15 ]; then
+			_rt_deps="$_rt_deps
+				FreeBSD-audit
+				FreeBSD-zlib
+			"
+		fi
+	fi
+
 	tell_status "installing postfix"
 	local _postfix_pkg="postfix-sasl"
 	[ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" != postfixadmin ] || _postfix_pkg="postfix-mysql"
-	stage_pkg_install "$_postfix_pkg" opendkim
+	stage_pkg_install "$_postfix_pkg" opendkim $_rt_deps
 	stage_exec install -m 0644 /usr/local/share/postfix/mailer.conf.postfix /usr/local/etc/mail/mailer.conf
 
 	if [ -n "$TOASTER_NRPE" ]; then
