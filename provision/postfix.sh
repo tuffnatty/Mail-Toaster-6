@@ -154,6 +154,10 @@ configure_postfix_main_cf()
 		stage_exec postconf -e 'transport_maps = hash:/data/etc/transport'
 	fi
 
+	if [ "${POSTFIX_PLUS_ADDRESSING:-0}" = "1" ]; then
+		stage_exec postconf -e 'recipient_delimiter = +'
+	fi
+
 	local _milters=
 	if [ -f "$_dkim_private_key" ]; then _milters="inet:localhost:8891"; fi
 	if [ "$TOASTER_MTA" = postfix ] && jail_is_running rspamd; then _milters="$_milters inet:$(get_jail_ip rspamd):11332"; fi
