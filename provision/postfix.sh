@@ -6,6 +6,7 @@ set -e -u
 
 service_config postfix
 export POSTFIX_ADD_MYNETWORKS="${POSTFIX_ADD_MYNETWORKS:-}"  # additional trusted network masks for SMTP
+export POSTFIX_PLUS_ADDRESSING="${POSTFIX_PLUS_ADDRESSING:-0}"  # set to 1 to enable plus addressing
 
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
@@ -158,6 +159,10 @@ configure_postfix_main_cf()
 	if [ -f "$(get_jail_data postfix)/etc/transport" ]; then
 		stage_exec postmap /data/etc/transport
 		stage_exec postconf -e 'transport_maps = hash:/data/etc/transport'
+	fi
+
+	if [ "${POSTFIX_PLUS_ADDRESSING:-0}" = "1" ]; then
+		stage_exec postconf -e 'recipient_delimiter = +'
 	fi
 
 	local _milters=
