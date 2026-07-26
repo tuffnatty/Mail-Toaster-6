@@ -133,7 +133,7 @@ configure_postfix_main_cf()
 	stage_exec install -m 0644 /usr/local/etc/postfix/main.cf /data/etc/main.cf
 
 	if [ "$TOASTER_MTA" = postfix ] || [ "$TOASTER_MSA" = postfix ]; then
-		stage_exec postconf -e "myhostname = $TOASTER_HOSTNAME"
+		stage_exec postconf -e "myhostname = ${TOASTER_HOSTNAME_SMTP:-"$TOASTER_HOSTNAME"}"
 		stage_exec postconf -e "myorigin = $TOASTER_MAIL_DOMAIN"
 	else
 		stage_exec postconf -e "myhostname = postfix.$TOASTER_HOSTNAME"
