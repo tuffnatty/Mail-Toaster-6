@@ -267,29 +267,19 @@ create_staged_fs()
 	PROVISION_TIMESTAMP="$(date -uIminutes)"
 	PROVISION_TIMESTAMP="${PROVISION_TIMESTAMP%+*}"
 
-	echo "zfs clone $BASE_SNAP $ZFS_JAIL_VOL/stage"
-	zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
+	if [ "$BASE_SNAP" = "EMPTY" ]; then
+		zfs_create_fs "$ZFS_JAIL_VOL/stage" || exit 1
+	else
+		echo zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage"
+		zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
+	fi
+
+	assure_ip6_addr_is_declared "$1"
 
 	if [ ! -d "$STAGE_MNT/data" ]; then
 		tell_status "creating $STAGE_MNT/data"
 		mkdir "$STAGE_MNT/data" || exit 1
 	fi
-
-	stage_sysrc hostname="$1"
-	if [ -f "$STAGE_MNT/usr/local/etc/ssmtp/ssmtp.conf" ]; then
-		sed_inplace -e "/^hostname=/ s/_HOSTNAME_/$1/" \
-			"$STAGE_MNT/usr/local/etc/ssmtp/ssmtp.conf"
-	fi
-
-	assure_ip6_addr_is_declared "$1"
-	stage_resolv_conf
-	install_minimal_hosts
-	for _dma_conf in "$STAGE_MNT/usr/local/etc/dma/dma.conf" "$STAGE_MNT/etc/dma/dma.conf"; do
-		if [ -f "$_dma_conf" ]; then
-			echo "MASQUERADE $1@$TOASTER_MAIL_DOMAIN" >> "$_dma_conf"
-			break
-		fi
-	done
 
 	# snapshot existing data volume before provisioning
 	if zfs_filesystem_exists "$ZFS_DATA_VOL/$1"; then
@@ -303,6 +293,24 @@ create_staged_fs()
 	adopt_jail_host_etc "$1"
 	install_fstab "$1"
 	install_pfrule "$1"
+
+	[ "$BASE_SNAP" != "EMPTY" ] || return 0
+
+	stage_sysrc hostname="$1"
+	if [ -f "$STAGE_MNT/usr/local/etc/ssmtp/ssmtp.conf" ]; then
+		sed_inplace -e "/^hostname=/ s/_HOSTNAME_/$1/" \
+			"$STAGE_MNT/usr/local/etc/ssmtp/ssmtp.conf"
+	fi
+
+	stage_resolv_conf
+	install_minimal_hosts
+	for _dma_conf in "$STAGE_MNT/usr/local/etc/dma/dma.conf" "$STAGE_MNT/etc/dma/dma.conf"; do
+		if [ -f "$_dma_conf" ]; then
+			echo "MASQUERADE $1@$TOASTER_MAIL_DOMAIN" >> "$_dma_conf"
+			break
+		fi
+	done
+
 	echo
 }
 
@@ -399,6 +407,19 @@ list_unadopted_pf_files()
 	done
 }
 
+_jail_create()
+{
+	if [ "$BASE_SNAP" != "EMPTY" ]; then
+		jail -c "$@" \
+			exec.start="/bin/sh /etc/rc" \
+			exec.stop="/bin/sh /etc/rc.shutdown"
+	else
+		jail -c "$@" \
+			exec.start="$SERVICE_CMDLINE"	\
+			exec.stop=""
+	fi
+}
+
 start_staged_jail()
 {
 	local _name=${1:-"$SAFE_NAME"}
@@ -412,19 +433,19 @@ start_staged_jail()
 	[ "$(sysctl -n security.jail.jailed)" != 1 ] || JAIL_DEVFS_RULESET=0
 
 	# shellcheck disable=2086
-	jail -c \
+	_jail_create	\
 		name=stage \
 		host.hostname="$_name" \
 		path="$_path" \
 		interface="$JAIL_NET_INTERFACE" \
 		ip4.addr="$(get_jail_ip4 stage)" \
 		ip6.addr="$(get_jail_ip6 stage)" \
-		exec.start="/bin/sh /etc/rc" \
-		exec.stop="/bin/sh /etc/rc.shutdown" \
 		mount.devfs \
 		$_mount \
 		devfs_ruleset="$JAIL_DEVFS_RULESET" \
 		$JAIL_START_EXTRA
+
+	[ "$BASE_SNAP" != "EMPTY" ] || return 0
 
 	[ "$_name" = base ] || \
 	[ "$_name" = bsd_cache ] || \
