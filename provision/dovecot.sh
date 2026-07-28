@@ -3,6 +3,8 @@
 set -e -u
 
 . mail-toaster.sh
+service_config dovecot
+export DOVECOT_DEFAULT_MAILBOX_QUOTA="${DOVECOT_DEFAULT_MAILBOX_QUOTA:-"1G"}"
 
 export JAIL_START_EXTRA="allow.sysvipc=1"
 export JAIL_CONF_EXTRA=""
@@ -171,7 +173,7 @@ login_access_sockets = tcpwrap
 
 plugin {
   quota = maildir:User quota
-  quota_rule = *:storage=1G
+  quota_rule = *:storage=$DOVECOT_DEFAULT_MAILBOX_QUOTA
   quota_rule2 = Trash:storage=+10%%
   quota_rule3 = Spam:storage=+20%%
 
@@ -660,6 +662,7 @@ test_dovecot()
 	echo "it worked"
 }
 
+tell_settings DOVECOT
 base_snapshot_exists || exit
 create_staged_fs dovecot
 mkdir -p "$STAGE_MNT/usr/local/vpopmail"
