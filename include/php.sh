@@ -77,16 +77,23 @@ configure_php_fpm() {
 		-e '/^error_log/ s/= .*/= syslog/' \
 		"$STAGE_MNT/usr/local/etc/php-fpm.conf"
 
-	if [ "$PHP_LISTEN_MODE" = "tcp" ]; then
-		return
-	fi
-
-	tell_status "switch PHP-FPM from TCP to unix socket"
 	local _fpmconf="$STAGE_MNT/usr/local/etc/php-fpm.conf"
 	if [ -f "$STAGE_MNT/usr/local/etc/php-fpm.d/www.conf" ]; then
 		_fpmconf="$STAGE_MNT/usr/local/etc/php-fpm.d/www.conf"
 	fi
 
+	if [ "${PHP_FPM_MAX_CHILDREN:-5}" != 5 ]; then
+		tell_status "setting PHP-FPM pm.max_children to $PHP_FPM_MAX_CHILDREN"
+		sed_inplace \
+			-e '/^pm.max_children/ s/^\<5\>/'"$PHP_FPM_MAX_CHILDREN"'/' \
+			"$_fpmconf"
+	fi
+
+	if [ "$PHP_LISTEN_MODE" = "tcp" ]; then
+		return
+	fi
+
+	tell_status "switch PHP-FPM from TCP to unix socket"
 	sed_inplace \
 		-e "/^listen =/      s|= .*|= '/tmp/php-cgi.socket';|" \
 		-e '/^;listen.owner/ s/^;//' \
