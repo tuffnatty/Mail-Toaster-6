@@ -202,6 +202,7 @@ configure_postfix_main_cf()
 	if [ -n "$_milters" ]; then
 		stage_exec postconf -e "smtpd_milters = ${_milters# }"
 		stage_exec postconf -e 'non_smtpd_milters = $smtpd_milters'
+		stage_exec postconf -e 'milter_default_action = accept'
 	fi
 }
 
