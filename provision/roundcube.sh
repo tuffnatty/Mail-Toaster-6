@@ -14,6 +14,8 @@ export ROUNDCUBE_EXTENSIONS=${ROUNDCUBE_EXTENSIONS:-"automatic_addressbook conte
 export ROUNDCUBE_FROM_LOCAL_PORT=${ROUNDCUBE_FROM_LOCAL_PORT:-"0"}
 export ROUNDCUBE_PRODUCT_NAME=${ROUNDCUBE_PRODUCT_NAME:-"Roundcube Webmail"}
 export ROUNDCUBE_SQL=${ROUNDCUBE_SQL:-"$TOASTER_MYSQL"}
+export ROUNDCUBE_SUPPORT_LABEL=${ROUNDCUBE_SUPPORT_LABEL:-"Get support"}
+export ROUNDCUBE_SUPPORT_URL=${ROUNDCUBE_SUPPORT_URL:-}
 
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
@@ -359,8 +361,19 @@ configure_roundcube()
 		-e "/'smtp_user'/    s/'';/'%u';/" \
 		-e "/'smtp_pass'/    s/'';/'%p';/" \
 		-e "/'product_name'/ s/'Roundcube Webmail'/$(sed_replacement_quote "$(php_quote "$ROUNDCUBE_PRODUCT_NAME")")/" \
+		-e "/'support_url'/  s/'';/$(sed_replacement_quote "$(php_quote "$ROUNDCUBE_SUPPORT_URL")");/" \
 		-e '/^\$config..plugins/,/^];$/d' \
 		"$_stage_cfg"
+
+	[ -z "$ROUNDCUBE_SUPPORT_LABEL" ] || {
+		tell_status "customizing support link label"
+		sed_inplace \
+			-e "/labels\['support'\]/ s/= '.*'/= $(sed_replacement_quote "$(php_quote "$ROUNDCUBE_SUPPORT_LABEL")")/" \
+			"$STAGE_MNT"/usr/local/www/roundcube/program/localization/*/labels.inc
+		sed_inplace \
+			-e "/class=\"support-link\"/ s/ target=\"_blank\"//"	\
+			"$STAGE_MNT/usr/local/www/roundcube/public_html/skins/elastic/templates/login.html"
+	}
 
 	tee -a "$_stage_cfg" <<'EO_RC_ADD'
 $config['log_driver'] = 'syslog';
