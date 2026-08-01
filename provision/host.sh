@@ -211,6 +211,12 @@ constrain_sshd_to_host()
 
 	service sshd configtest
 	service sshd restart
+
+	local _failover_sshd="/usr/local/sbin/failover-sshd"
+	[ -x "$_failover_sshd" ] || tell_status "Installing failover-sshd watchdog"
+	store_exec "$_failover_sshd" < contrib/failover-sshd.awk
+	crontab -l | grep -s "$_failover_sshd" ||
+	{ crontab -l || true; printf '*/%s * * * * %s' "${FAILOVER_SSHD_PERIOD:-5}" "$_failover_sshd"; } | crontab -
 }
 
 sshd_reorder()
