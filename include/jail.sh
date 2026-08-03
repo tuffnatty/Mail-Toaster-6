@@ -137,6 +137,25 @@ $(get_jail_ip6 "$_jail")
 EO_PF_TABLE
 }
 
+configure_ssh_pf_rdr()
+{
+	local _jail="$1" _port="$2" _pf_etc
+	_pf_etc="$(get_jail_etc "$_jail")/pf.conf.d"
+
+	configure_pf_jail_table "$_jail"
+
+	store_config "$_pf_etc/rdr.conf" <<EO_PF_RDR
+rdr inet  proto tcp from any to <ext_ip4> port { $_port } -> $(get_jail_ip  "$_jail")
+rdr inet6 proto tcp from any to <ext_ip6> port { $_port } -> $(get_jail_ip6 "$_jail")
+EO_PF_RDR
+
+	store_config "$_pf_etc/filter.conf" <<EO_PF_FILTER
+pass in quick proto tcp from any to <$_jail> port { $_port } \
+	flags S/SA synproxy state \
+	(max-src-conn 10, max-src-conn-rate 8/15, overload <bruteforce> flush global)
+EO_PF_FILTER
+}
+
 get_reverse_ip()
 {
 	local _jail_ip; _jail_ip=$(get_jail_ip "$1")
