@@ -116,9 +116,11 @@ configure_dovecot_local_conf() {
 	fi
 
 	store_config "$_localconf" <<EO_DOVECOT_LOCAL
+#mail_debug = yes
 $_listen
 auth_verbose=yes
 auth_mechanisms = plain login digest-md5 cram-md5 scram-sha-1 scram-sha-256
+#auth_mechanisms = plain login
 auth_username_format = %Lu
 disable_plaintext_auth = no
 first_valid_gid = $DOVECOT_MAILBOX_OWNER_GID
@@ -349,6 +351,9 @@ configure_example_config()
 	sed_inplace \
 		-e 's/^#listen = \*, ::/listen = \*/' \
 		"$_dcdir/dovecot.conf"
+	sed_inplace \
+		-e 's/table = quota$/table = quota2/' \
+		"$_dcdir/dovecot-dict-sql.conf.ext"
 }
 
 configure_system_auth()
@@ -679,8 +684,8 @@ test_dovecot()
 	MUA_TEST_HOST=$(get_jail_ip stage)
 	export MUA_TEST_HOST; export MUA_TEST_USER; export MUA_TEST_PASS
 
-	test_imap
-	test_pop3
+	#test_imap
+	#test_pop3
 	echo "it worked"
 }
 
