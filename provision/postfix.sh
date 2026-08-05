@@ -6,6 +6,7 @@ set -e -u
 
 service_config postfix
 export POSTFIX_ADD_MYNETWORKS="${POSTFIX_ADD_MYNETWORKS:-}"  # additional trusted network masks for SMTP
+export POSTFIX_MESSAGE_SIZE_MB="${POSTFIX_MESSAGE_SIZE_MB:-"25"}"
 export POSTFIX_PLUS_ADDRESSING="${POSTFIX_PLUS_ADDRESSING:-0}"  # set to 1 to enable plus addressing
 
 export JAIL_START_EXTRA=""
@@ -149,6 +150,8 @@ configure_postfix_main_cf()
 	stage_exec postconf -e 'lmtp_tls_security_level = may'
 	stage_exec postconf -e "mynetworks = ${JAIL_NET_PREFIX}.0${JAIL_NET_MASK} ${POSTFIX_ADD_MYNETWORKS}"
 	stage_exec postconf -e "mua_client_restrictions = permit_mynetworks, permit_sasl_authenticated, reject"
+
+	stage_exec postconf -e "message_size_limit = $(( POSTFIX_MESSAGE_SIZE_MB * 1024 * 1024 * 137 / 100 ))"  # account for encoding
 
 	if [ -f "$(get_jail_data postfix)/etc/sasl_passwd" ]; then
 		stage_exec postmap /data/etc/sasl_passwd
