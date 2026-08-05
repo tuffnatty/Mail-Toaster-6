@@ -5,6 +5,7 @@ set -e -u
 . mail-toaster.sh
 service_config dovecot
 export DOVECOT_DEFAULT_MAILBOX_QUOTA="${DOVECOT_DEFAULT_MAILBOX_QUOTA:-"1G"}"
+export DOVECOT_GREETING="${DOVECOT_GREETING:-"Mail Toaster (Dovecot) ready."}"
 
 export JAIL_START_EXTRA="allow.sysvipc=1"
 export JAIL_CONF_EXTRA=""
@@ -68,7 +69,7 @@ first_valid_uid = 89
 last_valid_gid = 89
 last_valid_uid = 89
 mail_privileged_group = 89
-login_greeting = Mail Toaster (Dovecot) ready.
+login_greeting = $DOVECOT_GREETING
 mail_plugins = \$mail_plugins quota
 protocols = imap pop3 lmtp sieve
 
