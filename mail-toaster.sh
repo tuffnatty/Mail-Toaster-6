@@ -6,7 +6,7 @@ export CI=${CI:-0}
 tell_status()
 {
 	echo; echo "   ***   $1   ***"; echo
-	if [ -t 0 ] && [ "$MT6_TEST_ENV" != "1" ]; then sleep 1; fi
+	if [ -t 0 ] && [ "$MT6_TEST_ENV" != "1" ]; then sleep 0.5; fi
 }
 
 mt6_config_hint()
@@ -18,7 +18,7 @@ mt6_config_hint()
 
 mt6-update()
 {
-	fetch "$TOASTER_SRC_URL/mail-toaster.sh"
+	#fetch "$TOASTER_SRC_URL/mail-toaster.sh"
 	# shellcheck disable=SC1091
 	. mail-toaster.sh
 }
@@ -49,19 +49,19 @@ mt6-fetch()
 		if [ "$CI" = "true" ]; then return; fi
 		if ! check_last_hour; then
 			tell_status "git repo, check status, skip fetch"
-			git remote update && git status
+			#git remote update && git status
 		fi
 		return
 	fi
 
-	if [ ! -d "$_dir" ]; then mkdir "$_dir"; fi
+	if [ ! -d "$_dir" ]; then echo_do mkdir "$_dir"; fi
 
-	fetch -o "$_dir" -m "$TOASTER_SRC_URL/$_dir/$2"
+	#fetch -o "$_dir" -m "$TOASTER_SRC_URL/$_dir/$2"
 }
 
 mt6-include()
 {
-	mt6-fetch include "$1.sh"
+	#mt6-fetch include "$1.sh"
 
 	if [ ! -f "include/$1.sh" ]; then
 		echo "unable to download include/$1.sh"
@@ -142,7 +142,7 @@ mt6_init()
 	if [ -z "$SAFE_NAME" ]; then echo "unset SAFE_NAME"; exit; fi
 }
 
-export TOASTER_SRC_URL=${TOASTER_SRC_URL:="https://raw.githubusercontent.com/msimerson/Mail-Toaster-6/master"}
+export TOASTER_SRC_URL=${TOASTER_SRC_URL:="https://raw.githubusercontent.com/tuffnatty/Mail-Toaster-6/master"}
 
 if [ "${MT6_TEST_ENV:-0}" != "1" ]; then
 	mt6_init
@@ -169,11 +169,19 @@ sed_inplace() {
 
 stage_unmount()
 {
-	# an empty STAGE_MNT would match every mountpoint on the host
-	[ -n "$STAGE_MNT" ] || fatal_err "stage_unmount: STAGE_MNT is unset"
+	if [ ! -e "$STAGE_MNT" ]; then
+		echo "staged FS mountpoint $STAGE_MNT does not exist"
+		return
+	fi
 
-	for _fs in $(mount | awk -v p="$STAGE_MNT/" 'index($3, p) == 1 { print $3 }' | sort -ru); do
-		echo "umount $_fs"
+	local _mnt="$STAGE_MNT"
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		_mnt="$(readlink -f "$STAGE_MNT")"
+		[ -n "$_mnt" ] || fatal_err "readlink -f \"$STAGE_MNT\" returned nothing"
+	fi
+
+	for _fs in $(mount | awk -v p="$_mnt/" 'index($3, p) == 1 { print $3 }' | sort -ru); do
+		echo_do \
 		umount "$_fs"
 	done
 }
@@ -183,53 +191,57 @@ cleanup_staged_fs()
 	tell_status "stage cleanup"
 	stop_jail stage
 	stage_unmount
-	zfs_destroy_fs "$ZFS_JAIL_VOL/stage" -f
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		zfs_destroy_fs "$(readlink -f "$ZFS_JAIL_MNT/stage")" -fr  # because of snapshots
+		[ ! -L "$ZFS_JAIL_MNT/stage" ] || echo_do rm "$ZFS_JAIL_MNT/stage"
+		return
+	fi
+	zfs_destroy_fs "$ZFS_JAIL_VOL/stage" -fr  # because of snapshots
 }
 
 install_fstab()
 {
+	local _data_mount _jail_mount _fstab _add=""
 	_data_mount="$(get_jail_data "$1")"
 	_jail_mount="$ZFS_JAIL_MNT/$1"
 	_host_etc="$(get_jail_host_etc "$1")"
 	_fstab="$_host_etc/fstab"
 
-	if [ ! -d "$_host_etc" ]; then
-		mkdir -p "$_host_etc" || exit 1
-	fi
-
 	tell_status "writing data mount to $_fstab"
-	echo "# Device                Mountpoint      FStype  Options         Dump    Pass#" | tee "$_fstab" || exit 1
-	echo "$_data_mount       $_jail_mount/data nullfs  rw   0  0" | tee -a "$_fstab"
-	echo "devfs               $_jail_mount/dev  devfs   rw   0  0" | tee -a "$_fstab"
 
 	if [ -n "$JAIL_FSTAB" ]; then
 		tell_status "appending JAIL_FSTAB to fstab"
-		echo "$JAIL_FSTAB" | tee -a "$_fstab" || exit 1
+		_add="$JAIL_FSTAB"
 	fi
 
 	if [ "$TOASTER_USE_TMPFS" = 1 ]; then
-		if ! grep -q "$_jail_mount/tmp" "$_fstab"; then
+		if ! contains "$JAIL_FSTAB" "$_jail_mount/tmp"; then
 			tell_status "adding tmpfs to fstab"
-			echo "tmpfs $_jail_mount/tmp     tmpfs rw,mode=01777,noexec,nosuid  0  0" | tee -a "$_fstab"
-			echo "tmpfs $_jail_mount/var/run tmpfs rw,mode=01755,noexec,nosuid  0  0" | tee -a "$_fstab"
+			_add="$_add
+tmpfs $_jail_mount/tmp     tmpfs rw,mode=01777,noexec,nosuid  0  0
+tmpfs $_jail_mount/var/run tmpfs rw,mode=01755,noexec,nosuid  0  0"
 		fi
 	fi
 
-	# ports build under /tmp/portbuild (WRKDIRPREFIX, set in provision/base.sh),
-	# which noexec breaks. Only the stage builds ports; the promoted jail keeps noexec.
-	sed -e "s|[[:space:]]$ZFS_JAIL_MNT/$1| $STAGE_MNT|" \
-		-e "\|[[:space:]]$STAGE_MNT/tmp[[:space:]]| s|,noexec||" \
-		"$_fstab" > \
-		"$_fstab.stage" || exit 1
-
-	tell_status "appending pkg & ports to fstab.stage"
-	echo "/usr/ports         $STAGE_MNT/usr/ports       nullfs rw  0  0" | tee -a "$_fstab.stage"
-	echo "/var/cache/pkg     $STAGE_MNT/var/cache/pkg   nullfs rw  0  0" | tee -a "$_fstab.stage"
+	store_config "$_fstab" "overwrite" <<EO_PROD_FSTAB || exit 1
+# Device                Mountpoint      FStype  Options         Dump    Pass#
+$_data_mount       $_jail_mount/data nullfs  rw,nosuid   0  0
+$_add
+EO_PROD_FSTAB
 
 	# copy staged fstab into place for jail shutdown
-	if [ ! -d "$(get_jail_host_etc stage)" ]; then
-		mkdir -p "$(get_jail_host_etc stage)" || exit 1
-	fi
+	{
+		# ports build under /tmp/portbuild (WRKDIRPREFIX, set in provision/base.sh),
+		# which noexec breaks. Only the stage builds ports; the promoted jail keeps noexec.
+		sed -e "s|[[:space:]]$ZFS_JAIL_MNT/$1| $ZFS_JAIL_MNT/stage|" \
+			-e "\|[[:space:]]$ZFS_JAIL_MNT/stage/tmp[[:space:]]| s|,noexec||" \
+			"$_fstab"
+		tell_status "appending pkg & ports to $(get_jail_host_etc stage)/fstab" 1>&2
+		cat <<EO_STAGE_FSTAB
+/usr/ports         $STAGE_MNT/usr/ports       nullfs rw  0  0
+/var/cache/pkg     $STAGE_MNT/var/cache/pkg   nullfs rw  0  0
+EO_STAGE_FSTAB
+	} | store_config "$_fstab.stage" "overwrite" || exit 1
 	cp "$_fstab.stage" "$(get_jail_host_etc stage)/fstab" || exit 1
 }
 
@@ -256,18 +268,67 @@ fstab_add_mount() {
 	done
 }
 
+migrate_jail_etc_first_part()
+{
+	if [ ! -d "$(get_jail_host_etc "$1")/pf.conf.d" ] && [ -d "$ZFS_DATA_MNT/$1/etc/pf.conf.d" ]; then
+		tell_status "Migrating $ZFS_DATA_MNT/$1/etc/pf.conf.d to $(get_jail_host_etc "$1")/pf.conf.d"
+		# copy here, rm in promote_staged_jail() after the production jail is stopped
+		cp -a "$ZFS_DATA_MNT/$1/etc/pf.conf.d" "$(get_jail_host_etc "$1")" || exit 1
+	fi
+}
+
+migrate_jail_etc_finish()
+{
+	local _old_etc="$ZFS_DATA_MNT/$1/etc"
+	if [ -f "$_old_etc/fstab" ] || [ -f "$_old_etc/fstab.stage" ]; then
+		tell_status "$_old_etc/fstab has migrated to $(get_jail_host_etc "$1")/fstab"
+		rm -f "$_old_etc/fstab" "$_old_etc/fstab.stage"
+	fi
+	if [ -d "$_old_etc/pf.conf.d" ]; then
+		tell_status "$_old_etc/pf.conf.d has migrated to $(get_jail_host_etc "$1")/pf.conf.d"
+		rm -fr "$_old_etc/pf.conf.d"
+	fi
+
+}
+
 create_staged_fs()
 {
 	cleanup_staged_fs
 
+	local _base_snap="$BASE_SNAP"
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || \
+		_base_snap="$ZFS_JAIL_VOL/pkgbase-$FBSD_REL_VER@${FBSD_PATCH_VER}"
 	tell_status "stage jail filesystem setup"
-	echo "zfs clone $BASE_SNAP $ZFS_JAIL_VOL/stage"
-	zfs clone "$BASE_SNAP" "$ZFS_JAIL_VOL/stage" || exit 1
+
+	PROVISION_TIMESTAMP="$(date -uIminutes)"
+	PROVISION_TIMESTAMP="${PROVISION_TIMESTAMP%+*}"
+
+	local _name="stage"; [ "${ZFS_REPLICATION_FRIENDLY:-0}" = 0 ] || _name="$1.$PROVISION_TIMESTAMP"
+	export STAGE_DATASET="$ZFS_JAIL_VOL/$_name"
+	if [ "$BASE_SNAP" = "EMPTY" ]; then
+		echo_do \
+		zfs_create_fs "$ZFS_JAIL_VOL/$_name" || exit 1
+	else
+		echo_do \
+		zfs clone "$_base_snap" "$ZFS_JAIL_VOL/$_name" || exit 1
+	fi
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		ln -sfh "$_name" "$ZFS_JAIL_MNT/stage" || exit 1
+	fi
+
+	assure_ip6_addr_is_declared "$1"
 
 	if [ ! -d "$STAGE_MNT/data" ]; then
-		tell_status "creating $STAGE_MNT/data"
+		echo_do \
 		mkdir "$STAGE_MNT/data" || exit 1
 	fi
+	zfs_create_fs "$ZFS_DATA_VOL/$1" "$ZFS_DATA_MNT/$1"
+	zfs_create_fs "$ZFS_DATA_VOL/etc"
+	install_fstab "$1"
+	migrate_jail_etc_first_part "$1"
+	install_pfrule "$1"
+
+	[ "$BASE_SNAP" != "EMPTY" ] || return 0
 
 	stage_sysrc hostname="$1"
 	if [ -f "$STAGE_MNT/usr/local/etc/ssmtp/ssmtp.conf" ]; then
@@ -275,14 +336,24 @@ create_staged_fs()
 			"$STAGE_MNT/usr/local/etc/ssmtp/ssmtp.conf"
 	fi
 
-	assure_ip6_addr_is_declared "$1"
 	stage_resolv_conf
 	echo "MASQUERADE $1@$TOASTER_MAIL_DOMAIN" >> "$STAGE_MNT/etc/dma/dma.conf"
-
-	zfs_create_fs "$ZFS_DATA_VOL/$1" "$ZFS_DATA_MNT/$1"
-	install_fstab "$1"
-	install_pfrule "$1"
 	echo
+}
+
+_jail_create()
+{
+	if [ "$BASE_SNAP" != "EMPTY" ]; then
+		echo_do \
+		jail -c "$@" \
+			exec.start="/bin/sh /etc/rc" \
+			exec.stop="/bin/sh /etc/rc.shutdown"
+	else
+		echo_do \
+		jail -c "$@" \
+			exec.start="$SERVICE_CMDLINE"	\
+			exec.stop=""
+	fi
 }
 
 start_staged_jail()
@@ -290,33 +361,34 @@ start_staged_jail()
 	local _name=${1:-"$SAFE_NAME"}
 	local _path=${2:-"$STAGE_MNT"}
 
-	local _mount
-	if [ "$_name" = "base" ]; then
-		_mount="mount.devfs"
-	else
-		_mount="mount.fstab=$(get_jail_host_etc "$_name")/fstab.stage"
-	fi
+	local _mount=""
+	[ "$_name" = "base" ] || _mount="mount.fstab=$(get_jail_host_etc "$_name")/fstab.stage"
 
 	tell_status "stage jail $_name startup"
 
 	# shellcheck disable=2086
-	jail -c \
+	_jail_create	\
 		name=stage \
 		host.hostname="$_name" \
 		path="$_path" \
 		interface="$JAIL_NET_INTERFACE" \
 		ip4.addr="$(get_jail_ip stage)" \
 		ip6.addr="$(get_jail_ip6 stage)" \
-		exec.start="/bin/sh /etc/rc" \
-		exec.stop="/bin/sh /etc/rc.shutdown" \
+		mount.devfs \
 		$_mount \
-		devfs_ruleset=5 \
+		devfs_ruleset=4 \
 		$JAIL_START_EXTRA
 
+	[ "$BASE_SNAP" != "EMPTY" ] || return 0
+
+	[ "$_name" = base ] || \
+	[ "$_name" = bsd_cache ] || \
 	enable_bsd_cache
 
 	tell_status "updating pkg database"
-	pkg -j stage update
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || echo_do certctl -D "$_path" rehash
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || echo_do pkg -j stage bootstrap -y
+	echo_do pkg -j stage update -q
 }
 
 tell_settings()
@@ -337,7 +409,9 @@ tell_settings()
 
 proclaim_success()
 {
+	green
 	echo; echo "Success! A new '$1' jail is provisioned"; echo
+	normal
 }
 
 stage_clear_caches()
@@ -364,7 +438,7 @@ seed_pkg_audit()
 {
 	if [ "$TOASTER_PKG_AUDIT" = "1" ]; then
 		tell_status "installing FreeBSD package audit database"
-		stage_exec /usr/sbin/pkg audit -F || echo ''
+		echo_stage_exec /usr/sbin/pkg audit -F || echo ''
 	fi
 }
 
@@ -383,8 +457,15 @@ promote_staged_jail()
 
 	rename_active_to_last "$1"
 	rename_ready_to_active "$1"
-	add_jail_conf "$1"
+
+	# Now the old jail is stopped, and we may complete the etc migration
+	migrate_jail_etc_finish "$1"
+
+	add_jail_conf "$1" "${2:-""}"
 	#add_automount "$1"
+	[ "$ZFS_SNAPSHOT_PROVISIONED" = 0 ] ||
+		echo_do \
+		zfs snapshot "$STAGE_DATASET@provisioned"
 
 	tell_status "service jail start $1"
 	service jail start "$1" || exit 1
@@ -394,8 +475,8 @@ promote_staged_jail()
 
 stage_pkg_install()
 {
-	echo "pkg -j $SAFE_NAME install -y $*"
-	pkg -j "$SAFE_NAME" install -y "$@"
+	echo_do \
+	pkg -j "$SAFE_NAME" install -qy "$@"
 }
 
 # /usr/ports is nullfs mounted into the staged jail from the host, so it is the
@@ -414,23 +495,103 @@ assure_ports_tree()
     pkg install -y git-lite && git clone https://github.com/freebsd/freebsd-ports.git $_ports"
 }
 
+diffnew() { diff "$@" | awk '/^>/ { print substr($0, 2) }'; }
+
+stage_pkg_install_and_collect() {
+	local _var_name="$1"
+	shift
+	if [ -z "$1" ]; then
+		setvar "$_var_name" ""
+		return 0
+	fi
+	pkg -j "$SAFE_NAME" info -q > /tmp/mt6-before-build-depends.tmp
+	stage_pkg_install "$@"
+	setvar "$_var_name" "$(pkg -j "$SAFE_NAME" info -q | diffnew /tmp/mt6-before-build-depends.tmp -)"
+}
+
+stage_pkg_install_and_collect_build_deps() {
+	local _add_deps=""
+	if [ "${TOASTER_PKGBASE:-0}" != 0 ]; then
+		_add_deps="
+			FreeBSD-blocklist-dev
+			FreeBSD-clang
+			FreeBSD-clibs-dev
+			FreeBSD-libcompiler_rt-dev
+			FreeBSD-libexecinfo
+			FreeBSD-lld
+			FreeBSD-mtree
+			FreeBSD-runtime-dev
+		"
+		if [ "$(freebsd_major "$STAGE_MNT")" -lt 15 ]; then
+			_add_deps="$_add_deps
+				FreeBSD-elftoolchain
+				FreeBSD-libbsm-dev
+			"
+		else
+			_add_deps="$_add_deps
+				FreeBSD-bmake
+				FreeBSD-toolchain
+			"
+		fi
+	fi
+	stage_pkg_install_and_collect "$@" $_add_deps
+}
+
+missing_packages()
+{
+	for depend; do
+		if [ y$depend != y ]; then  # strip spaces, quoting won't work
+			pkg -j "$SAFE_NAME" info -q | grep -q "${depend#*/}-[0-9]" || echo "$depend"
+		fi
+	done
+}
+
+freebsd_osversion()
+{
+	local _param_h="$1/usr/include/sys/param.h"
+	# On a minimal pkgbase install, there is no own sys/param.h. Use the one from the host
+	[ -f "$1$_param_h" ] || _param_h="${_param_h#"$1"}"
+
+	awk '/^\#define[[:blank:]]__FreeBSD_version/ {print $3}' < "$_param_h"
+}
+
 stage_port_install()
 {
 	# $1 is the port directory (eg: mail/dovecot)
+	local _portdir="/usr/ports/$1"
 
 	assure_ports_tree
 
-	stage_pkg_install pkgconf portconfig
+	tell_status "Install runtime dependencies via pkg"
+	local _run_depends _missing_run_depends
+	local _add_make_args=""
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || _add_make_args=OSVERSION="$(freebsd_osversion "$STAGE_MNT")"
+	_run_depends="$(echo_stage_exec make -C "$_portdir" $_add_make_args run-depends-list | sed 's,^/usr/ports/,,' | sort -n)"
+	_missing_run_depends="$(missing_packages $_run_depends)"
+	[ -z "$_missing_run_depends" ] || stage_pkg_install $_missing_run_depends
 
-	stage_exec make -C "/usr/ports/$1" reinstall clean || return 1
+	tell_status "Install missing build dependencies via pkg"
+	local _build_depends _build_depends_installed _missing_build_depends
+	_build_depends="$(echo_stage_exec make -C "$_portdir" $_add_make_args build-depends-list | sed 's,^/usr/ports/,,' | sort -n)"
+	_missing_build_depends="$(missing_packages $_build_depends)"
+
+	stage_pkg_install_and_collect _build_depends_installed $_missing_build_depends pkgconf portconfig
+
+	tell_status "Install $1 via ports"
+	echo_do \
+	stage_exec make -C "/usr/ports/$1" $_add_make_args reinstall clean || return 1
 
 	tell_status "port $1 installed"
+	if [ -n "$_build_depends_installed" ]; then
+		tell_status "Removing $1 build dependencies"
+		pkg -j "$SAFE_NAME" remove -qy $_build_depends_installed
+	fi
 }
 
 stage_sysrc()
 {
 	# don't use -j as this is oft called when jail is not running
-	echo "sysrc -R $STAGE_MNT $*"
+	echo_do \
 	sysrc -R "$STAGE_MNT" "$@"
 }
 
@@ -447,8 +608,12 @@ stage_make_conf()
 
 stage_exec()
 {
-	echo "jexec $SAFE_NAME $*"
 	jexec "$SAFE_NAME" "$@"
+}
+
+echo_stage_exec()
+{
+	echo_do jexec "$SAFE_NAME" "$@"
 }
 
 stage_listening()
@@ -477,6 +642,7 @@ stage_listening()
 stage_test_running()
 {
 	echo "checking for process $1 in staged jail"
+	echo_do \
 	pgrep -j stage "$1" || exit
 	echo "ok"
 }
@@ -585,13 +751,21 @@ stage_setup_tls()
 stage_enable_newsyslog()
 {
 	tell_status "enabling newsyslog"
+	echo_do \
 	sysrc -f "$STAGE_MNT/etc/rc.conf" newsyslog_enable=YES
 	if [ ! -d "$STAGE_MNT/usr/local/etc/newsyslog.conf.d" ]; then
+		echo_do \
 		mkdir "$STAGE_MNT/usr/local/etc/newsyslog.conf.d"
 	fi
+	echo_do \
 	sed_inplace \
 		-e '/^#0.*newsyslog/ s/^#0/0/' \
 		"$STAGE_MNT/etc/crontab"
+
+	# The <compress> directive has appeared in FreeBSD 15 and should precede all log file definitions
+	[ "$(freebsd_major "$STAGE_MNT")" -lt 15 ] ||
+		[ "$NEWSYSLOG_COMPRESSION_METHOD" = legacy ] ||
+		sed_inplace '1i <compress> $NEWSYSLOG_COMPRESSION_METHOD' "$STAGE_MNT/etc/newsyslog.conf"
 }
 
 unmount_data()
@@ -606,7 +780,7 @@ unmount_data()
 	local _target
 	for _target in $(mount -t nullfs | awk '{print $3}' | sort -r); do
 		case "$_target" in "$_data_mp"|"$_data_mp"/*)
-			echo umount -t nullfs "$_target"
+			echo_do \
 			umount -t nullfs "$_target"
 			;;
 		esac
@@ -615,7 +789,7 @@ unmount_data()
 
 fetch_and_exec()
 {
-	mt6-fetch provision "$1.sh"
+	#mt6-fetch provision "$1.sh"
 	sh "provision/$1.sh"
 }
 
@@ -629,13 +803,13 @@ install_sentry()
 	tell_status "installing sentry"
 	stage_pkg_install perl5 p5-Net-IP
 	stage_exec mkdir /var/db/sentry || exit
-	stage_exec fetch -o /var/db/sentry/sentry.pl --no-verify-peer https://raw.githubusercontent.com/msimerson/sentry/master/sentry.pl
+	#stage_exec fetch -o /var/db/sentry/sentry.pl --no-verify-peer https://raw.githubusercontent.com/msimerson/sentry/master/sentry.pl
 	stage_exec perl /var/db/sentry/sentry.pl --update
 
 	if [ -n "$TOASTER_NRPE" ]; then
 		tell_status "installing nagios sentry plugin"
 		stage_pkg_install nagios-plugins || exit
-		stage_exec fetch -o /usr/local/libexec/nagios/check_sentry $TOASTER_SRC_URL/contrib/check_sentry
+		#stage_exec fetch -o /usr/local/libexec/nagios/check_sentry $TOASTER_SRC_URL/contrib/check_sentry
 	fi
 }
 
@@ -704,6 +878,7 @@ unprovision_last()
 	for _j in $JAIL_ORDERED_LIST; do
 		if zfs_filesystem_exists "$ZFS_JAIL_VOL/$_j.last"; then
 			tell_status "destroying $ZFS_JAIL_VOL/$_j.last"
+			echo_do \
 			zfs destroy "$ZFS_JAIL_VOL/$_j.last"
 		fi
 	done
@@ -714,22 +889,26 @@ unprovision_filesystem()
 	for suffix in ready last; do
 		if zfs_filesystem_exists "$ZFS_JAIL_VOL/$1.$suffix"; then
 			tell_status "destroying $ZFS_JAIL_VOL/$1.$suffix"
+			echo_do \
 			zfs destroy "$ZFS_JAIL_VOL/$1.$suffix" || return 1
 		fi
 	done
 
 	if [ -e "$ZFS_JAIL_VOL/$1/dev/null" ]; then
+		echo_do \
 		umount -t devfs "$ZFS_JAIL_VOL/$1/dev" || return 1
 	fi
 
 	if zfs_filesystem_exists "$ZFS_DATA_VOL/$1"; then
 		tell_status "destroying $ZFS_DATA_MNT/$1"
 		unmount_data "$1" || return 1
+		echo_do \
 		zfs destroy "$ZFS_DATA_VOL/$1" || return 1
 	fi
 
 	if zfs_filesystem_exists "$ZFS_JAIL_VOL/$1"; then
 		tell_status "destroying $ZFS_JAIL_VOL/$1"
+		echo_do \
 		zfs destroy "$ZFS_JAIL_VOL/$1" || return 1
 	fi
 }
@@ -741,17 +920,17 @@ unprovision_filesystems()
 	done
 
 	if zfs_filesystem_exists "$ZFS_JAIL_VOL"; then
-		tell_status "destroying $ZFS_JAIL_VOL"
+		echo_do \
 		zfs destroy "$ZFS_JAIL_VOL" || return 1
 	fi
 
 	if zfs_filesystem_exists "$ZFS_DATA_VOL"; then
-		tell_status "destroying $ZFS_DATA_VOL"
+		echo_do \
 		zfs destroy "$ZFS_DATA_VOL" || return 1
 	fi
 
 	if zfs_filesystem_exists "$BASE_VOL"; then
-		tell_status "destroying $BASE_VOL"
+		echo_do \
 		zfs destroy -r "$BASE_VOL" || return 1
 	fi
 }
@@ -760,7 +939,7 @@ unprovision_files()
 {
 	for _f in /etc/jail.conf /etc/pf.conf /usr/local/sbin/jailmanage; do
 		if [ -f "$_f" ]; then
-			tell_status "rm $_f"
+			echo_do \
 			rm "$_f"
 		fi
 	done
@@ -773,11 +952,14 @@ unprovision_files()
 unprovision_rc()
 {
 	tell_status "disabling jail $1 startup"
+	echo_do \
 	sysrc jail_list-=" $1"
+	echo_do \
 	sysrc -f /etc/periodic.conf security_status_pkgaudit_jails-=" $1"
 
 	if [ -f /etc/jail.conf.d/$1.conf ]; then
 		tell_status "deleting /etc/jail.conf.d/$1.conf"
+		echo_do \
 		rm "/etc/jail.conf.d/$1.conf"
 	fi
 }
@@ -800,6 +982,7 @@ unprovision()
 	service jail stop
 	sleep 1
 
+	echo_do \
 	ipcrm -W
 	unprovision_filesystems
 	unprovision_files

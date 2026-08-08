@@ -67,8 +67,13 @@ install_pfrule()
 	local _pfdir
 	_pfdir="$(get_jail_host_etc "$1")/pf.conf.d"
 
-	mt6-fetch contrib pfrule.sh
+	# disable updates
+	#mt6-fetch contrib pfrule.sh
+	# minimize FS diff
+	[ -d "$_pfdir" ] ||
+	echo_do \
 	install -d "$_pfdir"
+	echo_do \
 	install -C -m 0755 contrib/pfrule.sh "$_pfdir/pfrule.sh"
 }
 
@@ -85,15 +90,23 @@ install_acme_sh()
 	stage_pkg_install acme.sh
 
 	# use a home directory that persists across deployments
-	stage_exec sh -c "[ -d /data/home/acme ] || mkdir -p /data/home/acme"
-	stage_exec pw usermod acme -d /data/home/acme
+	echo_stage_exec sh -c "[ -d /data/home/acme ] || mkdir -p /data/home/acme"
+	echo_stage_exec pw usermod acme -d /data/home/acme
 
-	stage_exec sh -c "[ -e /data/home/acme/deploy] || ln -s /usr/local/share/examples/acme.sh/deploy /data/home/acme/deploy"
-	stage_exec ln -s /data/home/acme /root/.acme.sh
+	echo_stage_exec sh -c "[ -e /data/home/acme/deploy] || ln -s /usr/local/share/examples/acme.sh/deploy /data/home/acme/deploy"
+	echo_stage_exec ln -s /data/home/acme /root/.acme.sh
 
 	# renew the certs automatically
 	store_exec "$STAGE_MNT/usr/local/etc/periodic/daily/acme.sh" <<EO_ACME_CRON
 #!/usr/local/bin/bash
 /usr/local/sbin/acme.sh --cron
 EO_ACME_CRON
+}
+
+install_minimal_hosts()
+{
+	store_config "$STAGE_MNT/etc/hosts" "append" <<EO_HOSTS
+$(get_jail_ip syslog) syslog
+$(get_jail_ip bsd_cache) pkg vulnxml freebsd-update
+EO_HOSTS
 }

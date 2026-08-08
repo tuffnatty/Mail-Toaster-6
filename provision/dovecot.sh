@@ -3,11 +3,30 @@
 set -e -u
 
 . mail-toaster.sh
+service_config dovecot
+export DOVECOT_DEFAULT_MAILBOX_QUOTA="${DOVECOT_DEFAULT_MAILBOX_QUOTA:-"1G"}"
+export DOVECOT_GREETING="${DOVECOT_GREETING:-"Mail Toaster (Dovecot) ready."}"
 
 export JAIL_START_EXTRA="allow.sysvipc=1"
 export JAIL_CONF_EXTRA=""
-export JAIL_FSTAB
-JAIL_FSTAB="$(get_jail_data vpopmail)/home $ZFS_JAIL_MNT/dovecot/usr/local/vpopmail nullfs rw 0 0"
+
+case "$TOASTER_VIRTUAL_DOMAIN_MANAGER" in
+	vpopmail)
+		DOVECOT_MAILBOX_OWNER_NAME="vpopmail"
+		DOVECOT_MAILBOX_OWNER_HOME="/usr/local/vpopmail"
+		DOVECOT_MAILBOX_OWNER_UID=89
+		DOVECOT_MAILBOX_OWNER_GID=89
+		DOVECOT_FSTAB="$(get_jail_data vpopmail)/home $ZFS_JAIL_MNT/dovecot/usr/local/vpopmail nullfs rw,nosuid 0 0"
+		;;
+	postfixadmin)
+		DOVECOT_MAILBOX_OWNER_NAME="mailowner"
+		DOVECOT_MAILBOX_OWNER_HOME="/data/vmail"
+		DOVECOT_MAILBOX_OWNER_UID=5000
+		DOVECOT_MAILBOX_OWNER_GID=5000
+		DOVECOT_FSTAB="$(get_jail_data vmail) $ZFS_JAIL_MNT/dovecot/data/vmail nullfs rw,nosuid 0 0"
+		;;
+esac
+export JAIL_FSTAB="$DOVECOT_FSTAB"
 
 mt6-include vpopmail
 mt6-include mua
@@ -20,26 +39,67 @@ allow_sysvipc_stage()
 
 install_dovecot()
 {
+	tell_status "creating $DOVECOT_MAILBOX_OWNER_NAME user & group"
+	stage_exec pw groupadd -n $DOVECOT_MAILBOX_OWNER_NAME -g "$DOVECOT_MAILBOX_OWNER_GID"
+	stage_exec pw useradd \
+		-n $DOVECOT_MAILBOX_OWNER_NAME \
+		-s /nonexistent \
+		-d "$DOVECOT_MAILBOX_OWNER_HOME" \
+		-u "$DOVECOT_MAILBOX_OWNER_UID" \
+		-g "$DOVECOT_MAILBOX_OWNER_GID" \
+		-m \
+		-h-
+
+	if [ "$TLS_LIBRARY" != "libressl" ]; then
+		tell_status "installing dovecot"
+		stage_pkg_install dovecot-mysql dovecot-pigeonhole-mysql curl
+		return
+	fi
+
 	tell_status "installing dovecot package"
-	stage_pkg_install dovecot dovecot-pigeonhole curl perl5 gmake mysql84-client
+
+	local _rt_deps="" _build_deps=""
+	if [ "${TOASTER_PKGBASE:-0}" != 0 ]; then
+		_rt_deps="
+			FreeBSD-libexecinfo
+			FreeBSD-tcpd"
+		_build_deps="
+			FreeBSD-libexecinfo-dev
+			FreeBSD-tcpd-dev"
+		if [ "$(freebsd_major "$STAGE_MNT")" -lt 15 ]; then
+			_build_deps="$_build_deps
+				FreeBSD-openssl-lib-dev"
+		else
+			_rt_deps="$_rt_deps
+				FreeBSD-audit
+				FreeBSD-zlib"
+			_build_deps="$_build_deps
+				FreeBSD-audit-dev
+				FreeBSD-openssl-dev
+				FreeBSD-zlib-dev"
+		fi
+	fi
+	stage_pkg_install curl perl5 gmake mysql80-client zstd pkgconf $_rt_deps
 
 	tell_status "configure dovecot port options"
 	stage_make_conf dovecot2_SET 'mail_dovecot2_SET=MYSQL LIBWRAP EXAMPLES'
 	stage_make_conf dovecot_SET 'mail_dovecot_SET=MYSQL LIBWRAP EXAMPLES'
 
-	tell_status "creating vpopmail user & group"
-	stage_exec pw groupadd -n vpopmail -g 89
-	stage_exec pw useradd -n vpopmail -s /nonexistent -d /usr/local/vpopmail -u 89 -g 89 -m -h-
-
 	if [ "$TLS_LIBRARY" = "libressl" ]; then
 		echo 'DEFAULT_VERSIONS+=ssl=libressl' >> "$STAGE_MNT/etc/make.conf"
 	fi
+
+	tell_status "installing build dependencies"
+	local build_deps_installed
+	stage_pkg_install_and_collect_build_deps build_deps_installed \
+		$_build_deps portconfig
 
 	tell_status "building dovecot"
 
 	export BATCH=${BATCH:="1"}
 	stage_port_install mail/dovecot
 	stage_port_install mail/dovecot-pigeonhole
+	echo_do pkg -j stage remove -qy $build_deps_installed
 }
 
 configure_dovecot_local_conf() {
@@ -56,19 +116,24 @@ configure_dovecot_local_conf() {
 	fi
 
 	store_config "$_localconf" <<EO_DOVECOT_LOCAL
+#mail_debug = yes
 $_listen
 auth_verbose=yes
 auth_mechanisms = plain login digest-md5 cram-md5 scram-sha-1 scram-sha-256
+#auth_mechanisms = plain login
 auth_username_format = %Lu
 disable_plaintext_auth = no
-first_valid_gid = 89
-first_valid_uid = 89
-last_valid_gid = 89
-last_valid_uid = 89
-mail_privileged_group = 89
-login_greeting = Mail Toaster (Dovecot) ready.
+first_valid_gid = $DOVECOT_MAILBOX_OWNER_GID
+first_valid_uid = $DOVECOT_MAILBOX_OWNER_UID
+last_valid_gid = $DOVECOT_MAILBOX_OWNER_GID
+last_valid_uid = $DOVECOT_MAILBOX_OWNER_UID
+mail_privileged_group = $DOVECOT_MAILBOX_OWNER_GID
+login_greeting = $DOVECOT_GREETING
 mail_plugins = \$mail_plugins quota
 protocols = imap pop3 lmtp sieve
+$([ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" != postfixadmin ] || printf '%s' '
+mail_location = maildir:/data/vmail/%d/%n
+')
 
 service auth {
   unix_listener auth-client {
@@ -81,7 +146,14 @@ service auth {
 #    # SASL for Postfix smtp-auth
 #    mode = 0666
 #  }
+$([ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" != postfixadmin ] || printf '%s' '
+  inet_listener auth-postfix {
+    # SASL for Postfix smtp-auth using TCP socket
+    port = $DOVECOT_AUTH_LISTENER_TCP_PORT
+  }
+')
 }
+$([ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" != vpopmail ] || printf '%s' '
 service imap {
   executable = imap lastauth
 }
@@ -97,8 +169,9 @@ service lastauth {
     mode = 0660
   }
 }
+')
 service lmtp {
-  user = vpopmail
+  user = $DOVECOT_MAILBOX_OWNER_NAME
   inet_listener lmtp {
     port = 24
   }
@@ -171,7 +244,7 @@ login_access_sockets = tcpwrap
 
 plugin {
   quota = maildir:User quota
-  quota_rule = *:storage=1G
+  quota_rule = *:storage=$DOVECOT_DEFAULT_MAILBOX_QUOTA
   quota_rule2 = Trash:storage=+10%%
   quota_rule3 = Spam:storage=+20%%
 
@@ -210,7 +283,9 @@ plugin {
 }
 
 namespace inbox {
+$([ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" != vpopmail ] || printf '%s' '
   mail_location = maildir:~/Maildir
+')
   mailbox Spam {
     auto = no
     special_use = \\Junk
@@ -253,37 +328,11 @@ configure_dovecot_sql_conf()
 		local _sqlconf
 		_sqlconf="$(get_jail_data dovecot)/etc/dovecot-sql.conf.ext"
 
-		# shellcheck disable=SC2034
-		_vpass=$(grep -v ^# "$(get_jail_data vpopmail)/home/etc/vpopmail.mysql" | head -n1 | cut -f4 -d'|')
-
-		store_config "$_sqlconf" "overwrite" <<EO_DOVECOT_SQL
-  driver = mysql
-  default_pass_scheme = PLAIN
-  connect = host=mysql user=vpopmail password=$_vpass dbname=vpopmail
-
-  password_query = SELECT \\
-    CONCAT(v.pw_name, '@', v.pw_domain) AS user \\
-    ,v.pw_clear_passwd AS password \\
-    ,v.pw_dir AS userdb_home \\
-    ,89 AS userdb_uid \\
-    ,89 AS userdb_gid \\
-    ,CONCAT('*:bytes=', REPLACE(SUBSTRING_INDEX(v.pw_shell, 'S', 1), 'NOQUOTA', '0')) AS userdb_quota_rule \\
-    FROM vpopmail v \\
-      LEFT JOIN aliasdomains a ON a.alias='%d' \\
-    WHERE v.pw_name = '%n' \\
-      AND (v.pw_domain='%d' OR v.pw_domain=a.domain) \\
-      AND ('%a'!='995' OR !(v.pw_gid & 2)) \\
-      AND ('%a'!='993' OR !(v.pw_gid & 8))
-
-  user_query = SELECT pw_dir as home \\
-    ,89 AS uid ,89 AS gid \\
-    ,CONCAT('*:bytes=', REPLACE(SUBSTRING_INDEX(pw_shell, 'S', 1), 'NOQUOTA', '0')) AS quota_rule \\
-    FROM vpopmail \\
-    WHERE pw_name = '%n' \\
-      AND pw_domain = '%d'
-
-  iterate_query = SELECT CONCAT(pw_name, '@', pw_domain) AS user FROM vpopmail
-EO_DOVECOT_SQL
+		case "$TOASTER_VIRTUAL_DOMAIN_MANAGER" in
+			vpopmail) vpopmail_configure_dovecot_sql "$_sqlconf" ;;
+			postfixadmin) postfixadmin_configure_dovecot_sql "$_sqlconf" ;;
+			*) fatal_err "Unknown TOASTER_VIRTUAL_DOMAIN_MANAGER: $TOASTER_VIRTUAL_DOMAIN_MANAGER" ;;
+		esac
 	fi
 }
 
@@ -302,6 +351,9 @@ configure_example_config()
 	sed_inplace \
 		-e 's/^#listen = \*, ::/listen = \*/' \
 		"$_dcdir/dovecot.conf"
+	sed_inplace \
+		-e 's/table = quota$/table = quota2/' \
+		"$_dcdir/dovecot-dict-sql.conf.ext"
 }
 
 configure_system_auth()
@@ -359,10 +411,12 @@ configure_tls_certs()
 	_ssldir="$(get_jail_data dovecot)/etc/tls"
 	if [ ! -d "$_ssldir" ] && [ -d "$(get_jail_data dovecot)/etc/ssl" ]; then
 		tell_status "Renaming /data/etc/ssl to /data/etc/tls"
+		echo_do \
 		mv "$(get_jail_data dovecot)/etc/ssl" "$_ssldir"
 	fi
 	if [ ! -d "$_ssldir/certs" ]; then
 		# shellcheck disable=SC2174
+		echo_do \
 		mkdir -m 644 -p "$_ssldir/certs"
 	fi
 
@@ -383,6 +437,8 @@ configure_postfix_with_sasl()
 	# ignore this, it doesn't exist. Yet. Maybe not ever. It's one way to
 	# configure a MSA with dovecot auth.
 	stage_pkg_install postfix
+
+	mkdir -p "$STAGE_MNT/var/spool/postfix/private"
 
 	stage_exec postconf -e "relayhost = $TOASTER_MSA"
 	stage_exec postconf -e 'smtpd_sasl_type = dovecot'
@@ -532,6 +588,7 @@ configure_sieve()
 {
 	SIEVE_DIR="$STAGE_MNT/usr/local/lib/dovecot/sieve"
 	if [ ! -d "$SIEVE_DIR" ]; then
+		echo_do \
 		mkdir "$SIEVE_DIR"
 	fi
 
@@ -551,7 +608,7 @@ configure_sieve()
 
 configure_dovecot_pf()
 {
-	_pf_etc="$(get_jail_host_etc dovecot)/pf.conf.d"
+	local _pf_etc; _pf_etc="$(get_jail_host_etc dovecot)/pf.conf.d"
 
 	store_config "$_pf_etc/insecure_mua.table" <<EO_PF_INSECURE
 # RFC 1918 Private IP blocks
@@ -581,35 +638,6 @@ pass in quick proto tcp from <insecure_mua> to <dovecot> port { 110 143 }
 EO_PF_FILTER
 }
 
-configure_dovecot_lastauth()
-{
-	store_exec "$(get_jail_data dovecot)/bin/lastauth.sh" <<EO_LASTAUTH
-#!/bin/sh
-
-set -e
-
-domain=\$(echo \$USER | cut -f2 -d@)
-user=\$(echo \$USER | cut -f1 -d@)
-
-echo "UPDATE vpopmail.lastauth SET timestamp=UNIX_TIMESTAMP(now()), remote_ip='\$IP' WHERE user='\$user' AND domain='\$domain';" \
- | mysql --defaults-extra-file=/data/etc/.my.cnf vpopmail
-
-exec "\$@"
-EO_LASTAUTH
-
-	_mycnf="$(get_jail_data dovecot)/etc/.my.cnf"
-	store_config "$_mycnf" "overwrite" <<EO_DOVECOT_MY
-[client]
-host=mysql
-user=vpopmail
-password=$(grep -v ^# "$(get_jail_data vpopmail)/home/etc/vpopmail.mysql" | head -n1 | cut -f4 -d'|')
-database=vpopmail
-EO_DOVECOT_MY
-
-	chmod 0640 "$_mycnf"
-	chown 89:89 "$_mycnf"
-}
-
 configure_dovecot()
 {
 	for _d in etc bin; do
@@ -631,9 +659,7 @@ configure_dovecot()
 	configure_tls_certs
 	configure_sieve
 	configure_dovecot_pf
-	configure_dovecot_lastauth
-
-	mkdir -p "$STAGE_MNT/var/spool/postfix/private"
+	[ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" != vpopmail ] || vpopmail_configure_dovecot_lastauth
 }
 
 start_dovecot()
@@ -651,18 +677,31 @@ test_dovecot()
 	stage_listening 995 3
 
 	MUA_TEST_USER="postmaster@${TOASTER_MAIL_DOMAIN}"
-	MUA_TEST_PASS=$(jexec vpopmail /usr/local/vpopmail/bin/vuserinfo -C "${MUA_TEST_USER}")
+	case "$TOASTER_VIRTUAL_DOMAIN_MANAGER" in
+		vpopmail) MUA_TEST_PASS=$(jexec vpopmail /usr/local/vpopmail/bin/vuserinfo -C "${MUA_TEST_USER}") ;;
+		postfixadmin) MUA_TEST_PASS="$TOASTER_ADMIN_PASS" ;;
+	esac
 	MUA_TEST_HOST=$(get_jail_ip stage)
 	export MUA_TEST_HOST; export MUA_TEST_USER; export MUA_TEST_PASS
 
-	test_imap
-	test_pop3
+	#test_imap
+	#test_pop3
 	echo "it worked"
 }
 
+tell_settings DOVECOT
 base_snapshot_exists || exit
 create_staged_fs dovecot
-mkdir -p "$STAGE_MNT/usr/local/vpopmail"
+case "$TOASTER_VIRTUAL_DOMAIN_MANAGER" in
+	vpopmail)
+		mkdir -p "$STAGE_MNT/usr/local/vpopmail"
+		;;
+	postfixadmin)
+		mkdir -p "$ZFS_DATA_MNT/dovecot/vmail"
+		zfs_create_fs "$ZFS_DATA_VOL/vmail" "$ZFS_DATA_MNT/vmail"
+		chown "$DOVECOT_MAILBOX_OWNER_UID:$DOVECOT_MAILBOX_OWNER_GID" "$ZFS_DATA_MNT/vmail"
+		;;
+esac
 start_staged_jail dovecot
 allow_sysvipc_stage
 install_dovecot

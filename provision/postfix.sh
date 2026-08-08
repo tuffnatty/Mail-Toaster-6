@@ -4,6 +4,11 @@ set -e -u
 
 . mail-toaster.sh
 
+service_config postfix
+export POSTFIX_ADD_MYNETWORKS="${POSTFIX_ADD_MYNETWORKS:-}"  # additional trusted network masks for SMTP
+export POSTFIX_MESSAGE_SIZE_MB="${POSTFIX_MESSAGE_SIZE_MB:-"25"}"
+export POSTFIX_PLUS_ADDRESSING="${POSTFIX_PLUS_ADDRESSING:-0}"  # set to 1 to enable plus addressing
+
 export JAIL_START_EXTRA=""
 export JAIL_CONF_EXTRA=""
 export JAIL_FSTAB=""
@@ -17,8 +22,22 @@ install_postfix()
 	stage_exec chown root:wheel /data/spool
 	stage_exec ln -s /data/spool /var/spool/postfix
 
+	if [ "${TOASTER_PKGBASE:-0}" != 0 ]; then
+		_rt_deps="
+			FreeBSD-libexecinfo
+			FreeBSD-sendmail"
+		if [ "$(freebsd_major "$STAGE_MNT")" -ge 15 ]; then
+			_rt_deps="$_rt_deps
+				FreeBSD-audit
+				FreeBSD-zlib
+			"
+		fi
+	fi
+
 	tell_status "installing postfix"
-	stage_pkg_install postfix-sasl opendkim
+	local _postfix_pkg="postfix-sasl"
+	[ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" != postfixadmin ] || _postfix_pkg="postfix-mysql"
+	stage_pkg_install "$_postfix_pkg" opendkim $_rt_deps
 	stage_exec install -m 0644 /usr/local/share/postfix/mailer.conf.postfix /usr/local/etc/mail/mailer.conf
 
 	if [ -n "$TOASTER_NRPE" ]; then
@@ -44,8 +63,8 @@ configure_opendkim()
 	local _opendkim_keyfile="$_dkim_dir/$TOASTER_MAIL_DOMAIN.private"
 	if [ ! -f "$STAGE_MNT$_opendkim_keyfile" ]; then
 		_selector="$(make_selector)"
-		stage_exec opendkim-genkey -b 2048 -h sha256 -D "$_dkim_dir" -s "$_selector" -v -d "$TOASTER_MAIL_DOMAIN"
-		stage_exec mv "$_dkim_dir/$_selector.private" "$_opendkim_keyfile"
+		echo_stage_exec opendkim-genkey -b 2048 -h sha256 -D "$_dkim_dir" -s "$_selector" -v -d "$TOASTER_MAIL_DOMAIN"
+		echo_stage_exec mv "$_dkim_dir/$_selector.private" "$_opendkim_keyfile"
 		tell_status "Please add this TXT record: $(cat "$STAGE_MNT$_dkim_dir/$_selector.txt")"
 	fi
 
@@ -88,6 +107,7 @@ configure_tls_certs()
 	_ssldir="$(get_jail_data postfix)/etc/tls"
 	if [ ! -d "$_ssldir" ] && [ -d "$(get_jail_data postfix)/etc/ssl" ]; then
 		tell_status "Renaming /data/etc/ssl to /data/etc/tls"
+		echo_do \
 		mv "$(get_jail_data postfix)/etc/ssl" "$_ssldir"
 	fi
 
@@ -128,7 +148,7 @@ configure_postfix_main_cf()
 	stage_exec install -m 0644 /usr/local/etc/postfix/main.cf /data/etc/main.cf
 
 	if [ "$TOASTER_MTA" = postfix ] || [ "$TOASTER_MSA" = postfix ]; then
-		stage_exec postconf -e "myhostname = $TOASTER_HOSTNAME"
+		stage_exec postconf -e "myhostname = ${TOASTER_HOSTNAME_SMTP:-"$TOASTER_HOSTNAME"}"
 		stage_exec postconf -e "myorigin = $TOASTER_MAIL_DOMAIN"
 	else
 		stage_exec postconf -e "myhostname = postfix.$TOASTER_HOSTNAME"
@@ -143,17 +163,37 @@ configure_postfix_main_cf()
 	stage_exec postconf -e 'smtpd_tls_security_level = may'
 	stage_exec postconf -e 'smtpd_tls_auth_only = yes'
 	stage_exec postconf -e 'lmtp_tls_security_level = may'
-	stage_exec postconf -e "mynetworks = ${JAIL_NET_PREFIX}.0${JAIL_NET_MASK}"
+	stage_exec postconf -e "mynetworks = ${JAIL_NET_PREFIX}.0${JAIL_NET_MASK} ${POSTFIX_ADD_MYNETWORKS}"
+	stage_exec postconf -e "mua_client_restrictions = permit_mynetworks, permit_sasl_authenticated, reject"
+
+	stage_exec postconf -e "message_size_limit = $(( POSTFIX_MESSAGE_SIZE_MB * 1024 * 1024 * 137 / 100 ))"  # account for encoding
 
 	if [ -f "$(get_jail_data postfix)/etc/sasl_passwd" ]; then
 		stage_exec postmap /data/etc/sasl_passwd
 		stage_exec postconf -e 'smtp_sasl_auth_enable = yes'
 		stage_exec postconf -e 'smtp_sasl_password_maps = hash:/data/etc/sasl_passwd'
+	elif [ "$TOASTER_MSA" = postfix ]; then
+		stage_exec postconf -e 'smtpd_sasl_type = dovecot'
+		stage_exec postconf -e "smtpd_sasl_path = inet:$(get_jail_ip dovecot):$DOVECOT_AUTH_LISTENER_TCP_PORT"
+		stage_exec postconf -e 'broken_sasl_auth_clients = yes'
+		stage_exec postconf -e 'smtpd_sasl_auth_enable = yes'
+		stage_exec postconf -e 'smtpd_sasl_local_domain ='
+		stage_exec postconf -e 'smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination'
 	fi
 
 	if [ -f "$(get_jail_data postfix)/etc/transport" ]; then
 		stage_exec postmap /data/etc/transport
 		stage_exec postconf -e 'transport_maps = hash:/data/etc/transport'
+	elif [ "$TOASTER_VIRTUAL_DOMAIN_MANAGER" = postfixadmin ]; then
+		postfixadmin_install_postfix_mysql_maps "$STAGE_MNT/data/etc"
+		stage_exec postconf -e "virtual_transport = lmtp:$(get_jail_ip dovecot):24"
+		stage_exec postconf -e "virtual_mailbox_domains = proxy:mysql:$MAIL_CONFIG/virtual_domain_maps.cf"
+		stage_exec postconf -e "virtual_alias_maps = proxy:mysql:$MAIL_CONFIG/virtual_alias_maps.cf, proxy:mysql:$MAIL_CONFIG/virtual_alias_domain_maps.cf, proxy:mysql:$MAIL_CONFIG/virtual_alias_domain_catchall_maps.cf"
+		stage_exec postconf -e "virtual_mailbox_maps = proxy:mysql:$MAIL_CONFIG/virtual_mailbox_maps.cf, proxy:mysql:$MAIL_CONFIG/virtual_alias_domain_mailbox_maps.cf"
+	fi
+
+	if [ "${POSTFIX_PLUS_ADDRESSING:-0}" = "1" ]; then
+		stage_exec postconf -e 'recipient_delimiter = +'
 	fi
 
 	local _milters=
@@ -162,6 +202,7 @@ configure_postfix_main_cf()
 	if [ -n "$_milters" ]; then
 		stage_exec postconf -e "smtpd_milters = ${_milters# }"
 		stage_exec postconf -e 'non_smtpd_milters = $smtpd_milters'
+		stage_exec postconf -e 'milter_default_action = accept'
 	fi
 }
 
@@ -174,8 +215,9 @@ enable_postfix_submission()
 
 	tell_status "enabling postfix submission and submissions/smtps services"
 	awk '
-		/^#(submission|submissions|smtps)[[:space:]]/ { sub(/^#/, ""); in_block = 1; print; next }
-		in_block && /^#[[:space:]]+-o/                { sub(/^#/, ""); print; next }
+		/^#(submission|submissions|smtps)[[:space:]]/              { sub(/^#/, ""); in_block = 1; print; next }
+		in_block && /^#[[:space:]]+-o smtpd_client_restrictions=$/ { sub(/^#/, ""); print $0 "$mua_client_restrictions"; next }
+		in_block && /^#[[:space:]]+-o/                             { sub(/^#/, ""); print; next }
 		{ in_block = 0; print }
 	' "$_master_cf" > "$_master_cf.tmp" && mv "$_master_cf.tmp" "$_master_cf"
 }
@@ -211,8 +253,8 @@ configure_postfix()
 
 	# postconf will break symlinks to files. To get all of postfix to always
 	# look at /data/etc for config, symlink the config dir
-	stage_exec mv /usr/local/etc/postfix /usr/local/etc/postfix.dist
-	stage_exec ln -s /data/etc /usr/local/etc/postfix
+	echo_stage_exec mv /usr/local/etc/postfix /usr/local/etc/postfix.dist
+	echo_stage_exec ln -s /data/etc /usr/local/etc/postfix
 
 	if [ -n "$TOASTER_NRPE" ]; then
 		stage_sysrc nrpe_enable=YES
@@ -224,7 +266,7 @@ configure_postfix()
 	configure_opendkim
 
 	preserve_file postfix '/etc/mail/aliases'
-	stage_exec /usr/local/bin/newaliases
+	stage_exec /usr/local/sbin/postalias /etc/mail/aliases
 
 	stage_exec install -m 0644 /usr/local/share/postfix/mailer.conf.postfix /data/etc/mailer.conf
 
@@ -257,11 +299,14 @@ test_postfix()
 	echo "it worked."
 }
 
+tell_settings POSTFIX
 base_snapshot_exists || exit 1
 create_staged_fs postfix
 start_staged_jail postfix
 install_postfix
 configure_postfix
-start_postfix
-test_postfix
+if ! jail_is_running postfix; then
+	start_postfix
+	test_postfix
+fi
 promote_staged_jail postfix

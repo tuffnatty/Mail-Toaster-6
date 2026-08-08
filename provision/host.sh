@@ -30,8 +30,11 @@ configure_ntimed()
 	disable_ntpd
 
 	tell_status "installing and enabling Ntimed"
+	echo_do \
 	pkg install -y ntimed
+	echo_do \
 	sysrc ntimed_enable=YES
+	echo_do \
 	service ntimed start
 }
 
@@ -41,13 +44,17 @@ configure_ntpd()
 		tell_status "NTPd is part of base system"
 	else
 		tell_status "installing NTPd from ports"
+		echo_do \
 		pkg install -y ntp
 	fi
 
 	if ! grep -q ^ntpd_enable /etc/rc.conf; then
 		tell_status "enabling NTPd"
+		echo_do \
 		sysrc ntpd_enable=YES
+		echo_do \
 		sysrc ntpd_sync_on_start=YES
+		echo_do \
 		service ntpd restart
 	fi
 }
@@ -56,8 +63,11 @@ configure_openntpd()
 {
 	disable_ntpd
 
+	echo_do \
 	pkg install -y openntpd
+	echo_do \
 	sysrc openntpd_enable=YES
+	echo_do \
 	service openntpd restart
 }
 
@@ -65,11 +75,15 @@ configure_chrony()
 {
 	disable_ntpd
 
+	echo_do \
 	pkg install -y chrony-lite
+	echo_do \
 	sysrc chronyd_enable=YES
 	if pgrep -q chronyd; then
+		echo_do \
 		service chronyd restart
 	else
+		echo_do \
 		service chronyd start
 	fi
 }
@@ -78,11 +92,14 @@ disable_ntpd()
 {
 	if grep -qs ^ntpd_enable /etc/rc.conf; then
 		tell_status "disabling NTPd"
+		echo_do \
 		service ntpd onestop || echo -n
+		echo_do \
 		sysrc ntpd_enable=NO
 	fi
 
 	if grep -q ^ntpd_sync_on_start /etc/rc.conf; then
+		echo_do \
 		sysrc ntpd_sync_on_start="NO"
 	fi
 }
@@ -102,7 +119,9 @@ update_syslogd()
 	fi
 
 	tell_status "configuring syslog to accept messages from jails"
+	echo_do \
 	sysrc syslogd_flags="$_sysflags"
+	echo_do \
 	service syslogd restart
 }
 
@@ -204,13 +223,23 @@ constrain_sshd_to_host()
 
 	tell_status "Limiting SSHd to host IP address"
 
+	echo_do \
 	sysrc sshd_flags+=" \-o ListenAddress=$PUBLIC_IP4"
 	if [ -n "$PUBLIC_IP6" ]; then
+		echo_do \
 		sysrc sshd_flags+=" \-o ListenAddress=$PUBLIC_IP6"
 	fi
 
+	echo_do \
 	service sshd configtest
+	echo_do \
 	service sshd restart
+
+	local _failover_sshd="/usr/local/sbin/failover-sshd"
+	[ -x "$_failover_sshd" ] || tell_status "Installing failover-sshd watchdog"
+	store_exec "$_failover_sshd" < contrib/failover-sshd.awk
+	crontab -l | grep -s "$_failover_sshd" ||
+	{ crontab -l || true; printf '*/%s * * * * %s' "${FAILOVER_SSHD_PERIOD:-5}" "$_failover_sshd"; } | crontab -
 }
 
 sshd_reorder()
@@ -222,7 +251,8 @@ sshd_reorder()
 	fi
 
 	tell_status "starting sshd earlier"
-	if [ ! -d "/usr/local/etc/rc.d" ]; then mkdir -p "/usr/local/etc/rc.d"; fi
+	if [ ! -d "/usr/local/etc/rc.d" ]; then echo_do mkdir -p "/usr/local/etc/rc.d"; fi
+	echo_do \
 	tee "$_file" <<EO_SSHD_REORDER
 #!/bin/sh
 # start up sshd earlier, particularly before jails
@@ -233,6 +263,7 @@ sshd_reorder()
 # BEFORE: jail
 
 EO_SSHD_REORDER
+	echo_do \
 	chmod 755 "$_file"
 }
 
@@ -270,11 +301,14 @@ configure_tls_certs()
 	fi
 
 	if [ ! -d /etc/ssl/certs ]; then
+		echo_do \
 		mkdir "/etc/ssl/certs"
 	fi
 
 	if [ ! -d /etc/ssl/private ]; then
+		echo_do \
 		mkdir "/etc/ssl/private"
+		echo_do \
 		chmod o-r "/etc/ssl/private"
 	fi
 
@@ -292,11 +326,13 @@ configure_tls_certs()
 
 	if [ -t 0 ]; then
 		# prompt user for values
+		echo_do \
 		openssl req -x509 -nodes -days 2190 -newkey rsa:2048 \
 			-keyout "$KEYFILE" -out "$CRTFILE"
 	else
 		local SUBJ="/C=$_cc/ST=$_state/L=$_city/O=Mail Toaster/CN=$TOASTER_HOSTNAME"
 		echo "subject: $SUBJ"
+		echo_do \
 		openssl req -x509 -nodes -days 2190 -newkey rsa:2048 \
 			-keyout "$KEYFILE" -out "$CRTFILE" -subj "$SUBJ"
 	fi
@@ -311,6 +347,7 @@ configure_dhparams()
 	local DHP="/etc/ssl/dhparam.pem"
 	if [ ! -f "$DHP" ]; then
 		tell_status "Generating a 2048 bit dhparams file"
+		echo_do \
 		openssl dhparam -out "$DHP" 2048
 	fi
 }
@@ -323,6 +360,7 @@ install_sshguard()
 	fi
 
 	tell_status "installing sshguard"
+	echo_do \
 	pkg install -y sshguard
 
 	tell_status "configuring sshguard for PF"
@@ -332,7 +370,9 @@ install_sshguard()
 		/usr/local/etc/sshguard.conf
 
 	tell_status "starting sshguard"
+	echo_do \
 	sysrc sshguard_enable=YES
+	echo_do \
 	service sshguard start
 }
 
@@ -362,14 +402,20 @@ configure_ipv6()
 	get_public_ip6
 
 	if [ -n "$PUBLIC_IP6" ] && [ -n "$PUBLIC_NIC" ]; then
+		echo_do \
 		sysrc ipv6_activate_all_interfaces="YES"
+		echo_do \
 		sysrc ipv6_cpe_wanif="$PUBLIC_NIC"
+		echo_do \
 		sysrc ipv6_gateway_enable="YES"
+		echo_do \
 		sysctl net.inet6.ip6.forwarding=1
 
 		# disable DAD so jailed daemons have IPv6 addrs ready when they start
+		echo_do \
 		sysctl net.inet6.ip6.dad_count=0
 		grep -q ^net.inet6.ip6.dad_count /etc/sysctl.conf || \
+		    echo_do \
 		    echo "net.inet6.ip6.dad_count=0" >> /etc/sysctl.conf
 	fi
 }
@@ -399,6 +445,9 @@ table <ext_ip6> { \$ext_ip6 } persist
 table <bruteforce> persist
 table <sshguard> persist
 
+ssh_ports    = "{ 22 }"
+
+
 ## NAT / Network Address Translation
 
 binat-anchor "binat/*"
@@ -424,7 +473,7 @@ anchor "filter/*"
 
 block in quick from <bruteforce>
 
-block in quick proto tcp from <sshguard> to any port ssh
+block in quick proto tcp from <sshguard> to any port \$ssh_ports
 
 # DHCP
 pass in inet  proto udp from port 67 to port 68
@@ -448,12 +497,16 @@ EO_PF_RULES
 			/etc/pf.conf
 	fi
 
-	kldstat -q -m pf || kldload pf
+	echo; echo "/etc/pf.conf has been installed"; echo
 
-	grep -q ^pf_enable /etc/rc.conf || sysrc pf_enable=YES
+	kldstat -q -m pf || echo_do kldload pf
+
+	grep -q ^pf_enable /etc/rc.conf || echo_do sysrc pf_enable=YES
 	if ! /sbin/pfctl -s Running; then
+		echo_do \
 		/etc/rc.d/pf start
 	else
+		echo_do \
 		/sbin/pfctl -f /etc/pf.conf
 	fi
 
@@ -465,18 +518,22 @@ install_jailmanage()
 	if [ -s /usr/local/bin/jailmanage ]; then return; fi
 
 	tell_status "installing jailmanage"
-	if [ ! -d "/usr/local/bin" ]; then mkdir -p "/usr/local/bin"; fi
+	if [ ! -d "/usr/local/bin" ]; then echo_do mkdir -p "/usr/local/bin"; fi
+	echo_do \
 	fetch -o /usr/local/bin/jailmanage https://raw.githubusercontent.com/msimerson/jailmanage/master/jailmanage.sh
+	echo_do \
 	chmod 755 /usr/local/bin/jailmanage
 }
 
 enable_jails_start()
 {
 	tell_status "enabling jails"
+	echo_do \
 	sysrc jail_enable=YES
 
 	if ! grep -q jail_reverse_stop /etc/rc.conf; then
 		tell_status "reverse jails when shutting down"
+		echo_do \
 		sysrc jail_reverse_stop=YES
 	fi
 
@@ -505,21 +562,23 @@ update_ports_tree()
 	if [ -d "/usr/ports/.git" ]; then
 		if is_installed gitup; then
 			tell_status "updating FreeBSD ports tree (gitup)"
+			echo_do \
 			gitup ports
 		elif is_installed git; then
 			tell_status "updating FreeBSD ports tree (git)"
-			cd "/usr/ports/" || return
-			git pull
-			cd - || return
+			echo_do \
+			git -C /usr/ports pull
 		fi
 	else
 		if is_installed portsnap; then
 			tell_status "updating FreeBSD ports tree (portsnap)"
+			echo_do \
 			portsnap fetch
 
 			if [ -d /usr/ports/mail/vpopmail ]; then
-				portsnap update || portsnap extract
+				echo_do portsnap update || echo_do portsnap extract
 			else
+				echo_do \
 				portsnap extract
 			fi
 		fi
@@ -535,6 +594,7 @@ update_freebsd()
 
 	if grep -q '^Components src' /etc/freebsd-update.conf; then
 		tell_status "remove src from freebsd-update"
+		echo_do \
 		sed_inplace -e '/^Components/ s/src //' /etc/freebsd-update.conf
 	fi
 
@@ -542,21 +602,26 @@ update_freebsd()
 		echo "FreBSD pkgbase detected"
 	else
 		tell_status "updating FreeBSD with security patches"
+		echo_do \
 		freebsd-update fetch install
 
 		tell_status "clearing freebsd-update cache"
+		echo_do \
 		rm -rf /var/db/freebsd-update/*
 	fi
 
 	tell_status "updating FreeBSD pkg collection"
+	echo_do \
 	pkg update
 
 	if ! pkg info -e ca_root_nss; then
 		tell_status "install CA root certs, so https URLs work"
+		echo_do \
 		pkg install -y ca_root_nss
 	fi
 
 	tell_status "upgrading installed FreeBSD packages"
+	echo_do \
 	pkg upgrade -y
 
 	update_ports_tree
@@ -571,11 +636,13 @@ plumb_jail_nic()
 
 	if ! grep -q cloned_interfaces /etc/rc.conf; then
 		tell_status "plumb lo1 interface at startup"
+		echo_do \
 		sysrc cloned_interfaces+=lo1
 	fi
 
 	if ifconfig lo1 2>&1 | grep -q 'does not exist'; then
 		tell_status "plumb lo1 interface"
+		echo_do \
 		ifconfig lo1 create description MT6-jails
 	fi
 }
@@ -584,21 +651,25 @@ assign_syslog_ip()
 {
 	if ! sysrc -cq ifconfig_lo1; then
 		tell_status "adding syslog IPv4 to lo1"
+		echo_do \
 		sysrc ifconfig_lo1="$JAIL_NET_PREFIX.1 netmask 255.255.255.0"
 	fi
 
 	if ! sysrc -cq ifconfig_lo1_ipv6; then
 		tell_status "adding syslog IPv6 to lo1"
+		echo_do \
 		sysrc ifconfig_lo1_ipv6="$JAIL_NET6:1/112"
 	fi
 
 	if ! ifconfig lo1 2>&1 | grep -q "$JAIL_NET_PREFIX.1 "; then
 		echo "assigning $JAIL_NET_PREFIX.1 to lo1"
+		echo_do \
 		ifconfig lo1 "$JAIL_NET_PREFIX.1" netmask 255.255.255.0
 	fi
 
 	if ! ifconfig lo1 2>&1 | grep -q "$JAIL_NET6:1 "; then
 		echo "assigning $JAIL_NET6:1 to lo1"
+		echo_do \
 		ifconfig lo1 inet6 "$JAIL_NET6:1/112"
 	fi
 }
@@ -609,6 +680,7 @@ configure_etc_hosts()
 	# hosts DNS on *every* incoming syslog message.
 	if grep -q "^$JAIL_NET_PREFIX" /etc/hosts; then
 		tell_status "removing /etc/hosts toaster additions"
+		echo_do \
 		sed_inplace -e "/^$JAIL_NET_PREFIX.*/d" /etc/hosts
 	fi
 
@@ -625,6 +697,8 @@ $(get_jail_ip "$_j")		$_j"
 
 update_mt6()
 {
+	return 0
+	# shellcheck disable=SC2317
 	if [ -d ".git" ]; then
 		git remote update
 		git status -u no
@@ -632,8 +706,8 @@ update_mt6()
 }
 
 update_host() {
-	sysrc -c -q background_fsck=NO || sysrc -q background_fsck=NO
-	update_mt6
+	sysrc -c -q background_fsck=NO || echo_do sysrc -q background_fsck=NO
+	#update_mt6
 	update_freebsd
 	configure_pkg_latest ""
 	configure_ntp
@@ -654,7 +728,7 @@ update_host() {
 	configure_etc_hosts
 	configure_csh_shell ""
 	configure_bourne_shell ""
-	test -e "/etc/localtime" || tzsetup
+	test -e "/etc/localtime" || echo_do tzsetup
 	check_global_listeners
 	echo; echo "Success! Your host is ready to install Mail Toaster 6!"; echo
 }

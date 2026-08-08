@@ -124,8 +124,8 @@ setup() {
 @test "fstab_add_mount" {
   local tmpdir; tmpdir=$(mktemp -d)
   export ZFS_DATA_MNT="$tmpdir"
-  mkdir -p "$tmpdir/myjail/etc"
-  local fstab="$tmpdir/myjail/etc/fstab"
+  local fstab; fstab="$(get_jail_host_etc myjail)/fstab"
+  mkdir -p "$(dirname "$fstab")"
   touch "$fstab" "${fstab}.stage"
 
   # Mock tell_status
@@ -247,8 +247,8 @@ setup() {
 @test "fstab_add_mount - skips entry already present" {
   local tmpdir; tmpdir=$(mktemp -d)
   export ZFS_DATA_MNT="$tmpdir"
-  mkdir -p "$tmpdir/myjail/etc"
-  local fstab="$tmpdir/myjail/etc/fstab"
+  local fstab; fstab="$(get_jail_host_etc myjail)/fstab"
+  mkdir -p "$(dirname "$fstab")"
   printf '/src\t/dest\tnullfs\trw\t0\t0\n' > "$fstab"
   printf '/src\t/dest\tnullfs\trw\t0\t0\n' > "${fstab}.stage"
 
@@ -283,16 +283,36 @@ setup() {
   export STAGE_MNT="$tmpdir/jails/stage"
   export JAIL_FSTAB=""
   export TOASTER_USE_TMPFS=0
-  mkdir -p "$tmpdir/myjail/etc" "$tmpdir/stage/etc"
+  mkdir -p "$(get_jail_host_etc myjail)" "$(get_jail_host_etc stage)"
 
   tell_status() { :; }
 
   run install_fstab myjail
   assert_success
 
-  run grep "nullfs" "$tmpdir/myjail/etc/fstab"
+  run grep "nullfs" "$(get_jail_host_etc myjail)/fstab"
   assert_success
   assert_output --partial "$tmpdir/jails/myjail/data"
+
+  rm -rf "$tmpdir"
+}
+
+@test "install_fstab creates no host devfs mount" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  export ZFS_DATA_MNT="$tmpdir"
+  export ZFS_JAIL_MNT="$tmpdir/jails"
+  export STAGE_MNT="$tmpdir/jails/stage"
+  export JAIL_FSTAB=""
+  export TOASTER_USE_TMPFS=0
+  mkdir -p "$tmpdir/etc/myjail" "$tmpdir/etc/stage"
+
+  tell_status() { :; }
+
+  run install_fstab myjail
+  assert_success
+
+  run grep "devfs" "$tmpdir/myjail/etc/fstab"
+  assert_failure
 
   rm -rf "$tmpdir"
 }
@@ -303,7 +323,7 @@ setup_tmpfs_fstab() {
   export STAGE_MNT="$1/jails/stage"
   export JAIL_FSTAB=""
   export TOASTER_USE_TMPFS=1
-  mkdir -p "$1/myjail/etc" "$1/stage/etc"
+  mkdir -p "$(get_jail_host_etc myjail)" "$(get_jail_host_etc stage)"
 
   tell_status() { :; }
 }
@@ -314,7 +334,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/myjail/tmp" "$tmpdir/myjail/etc/fstab"
+  run grep "$tmpdir/jails/myjail/tmp" "$(get_jail_host_etc myjail)/fstab"
   assert_success
   assert_output --partial "rw,mode=01777,noexec,nosuid"
 
@@ -327,7 +347,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/stage/tmp" "$tmpdir/myjail/etc/fstab.stage"
+  run grep "$tmpdir/jails/stage/tmp" "$(get_jail_host_etc myjail)/fstab.stage"
   assert_success
   refute_output --partial "noexec"
   assert_output --partial "rw,mode=01777,nosuid"
@@ -341,7 +361,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/stage/var/run" "$tmpdir/myjail/etc/fstab.stage"
+  run grep "$tmpdir/jails/stage/var/run" "$(get_jail_host_etc myjail)/fstab.stage"
   assert_success
   assert_output --partial "rw,mode=01755,noexec,nosuid"
 
@@ -354,7 +374,7 @@ setup_tmpfs_fstab() {
 
   install_fstab myjail
 
-  run grep "$tmpdir/jails/stage/tmp" "$tmpdir/stage/etc/fstab"
+  run grep "$tmpdir/jails/stage/tmp" "$(get_jail_host_etc stage)/fstab"
   assert_success
   refute_output --partial "noexec"
 
@@ -368,13 +388,13 @@ setup_tmpfs_fstab() {
   export STAGE_MNT="$tmpdir/jails/stage"
   export JAIL_FSTAB="/extra/src /extra/dest nullfs rw 0 0"
   export TOASTER_USE_TMPFS=0
-  mkdir -p "$tmpdir/myjail/etc" "$tmpdir/stage/etc"
+  mkdir -p "$(get_jail_host_etc myjail)" "$(get_jail_host_etc stage)"
 
   tell_status() { :; }
 
   install_fstab myjail
 
-  run grep "/extra/src" "$tmpdir/myjail/etc/fstab"
+  run grep "/extra/src" "$(get_jail_host_etc myjail)/fstab"
   assert_success
 
   rm -rf "$tmpdir"
@@ -444,53 +464,62 @@ EOF
 }
 
 unmounted_paths() {
-  stage_unmount | awk '/^umount /{ print $2 }'
+  stage_unmount 2>&1 | awk '/^umount /{ print $2 }'
 }
 
 @test "stage_unmount unmounts nested mounts before their parents" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   assert_line --index 0 "$STAGE_MNT/usr/ports/distfiles"
   assert_line --index 1 "$STAGE_MNT/usr/ports"
+  rm -fr "$STAGE_MNT"
 }
 
 @test "stage_unmount unmounts each mountpoint once" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   assert_equal "${#lines[@]}" 4
+  rm -fr "$STAGE_MNT"
 }
 
 @test "stage_unmount unmounts the stage devfs" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   assert_line "$STAGE_MNT/dev"
+  rm -fr "$STAGE_MNT"
 }
 
 @test "stage_unmount leaves the stage root mounted" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   refute_line "$STAGE_MNT"
+  rm -fr "$STAGE_MNT"
 }
 
 @test "stage_unmount ignores mounts outside the stage" {
+  export STAGE_MNT=$(mktemp -d)
   fake_mount
   run unmounted_paths
   assert_success
   # 'stage' as a substring elsewhere in the mount line is not a stage mount
   refute_line "${STAGE_MNT}-other/data"
   refute_line "$ZFS_JAIL_MNT/dovecot/stagefiles"
+  rm -fr "$STAGE_MNT"
 }
 
-@test "stage_unmount refuses to run with STAGE_MNT unset" {
+@test "stage_unmount is no-op with STAGE_MNT unset" {
   fake_mount
   STAGE_MNT=
   run stage_unmount
-  assert_failure
-  assert_output --partial "STAGE_MNT is unset"
+  assert_output --regexp "staged FS mountpoint  does not exist"
   refute_output --partial "umount /"
 }
 
@@ -513,4 +542,32 @@ unmounted_paths() {
   run assure_ports_tree "$_ports"
   assert_output --partial "gitup ports"
   assert_output --partial "git clone https://github.com/freebsd/freebsd-ports.git"
+}
+
+@test "migrate_jail_etc_first_part - copies pf.conf.d content" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  export ZFS_DATA_MNT="$tmpdir"
+  mkdir -p "$ZFS_DATA_MNT/dovecot/etc/pf.conf.d" "$(get_jail_host_etc dovecot)"
+  echo "whatever" > "$ZFS_DATA_MNT/dovecot/etc/pf.conf.d/pfrule.sh"
+  migrate_jail_etc_first_part "dovecot"
+  run cat "$(get_jail_host_etc dovecot)/pf.conf.d/pfrule.sh"
+  assert_output "whatever"
+  rm -rf "$tmpdir"
+}
+
+@test "migrate_jail_etc_finish - removes old fstab and pf.conf.d" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  export ZFS_DATA_MNT="$tmpdir"
+  mkdir -p "$ZFS_DATA_MNT/dovecot/etc/pf.conf.d"
+  echo "whatever" > "$ZFS_DATA_MNT/dovecot/etc/pf.conf.d/pfrule.sh"
+  echo "whatever" > "$ZFS_DATA_MNT/dovecot/etc/fstab"
+  echo "whatever" > "$ZFS_DATA_MNT/dovecot/etc/fstab.stage"
+  migrate_jail_etc_finish "dovecot"
+  run test -e "$ZFS_DATA_MNT/dovecot/etc/pf.conf.d"
+  assert_failure
+  run test -e "$ZFS_DATA_MNT/dovecot/etc/fstab"
+  assert_failure
+  run test -e "$ZFS_DATA_MNT/dovecot/etc/fstab.stage"
+  assert_failure
+  rm -rf "$tmpdir"
 }

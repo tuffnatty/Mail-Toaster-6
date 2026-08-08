@@ -44,6 +44,7 @@ err_exit()       { echo "ERR: $*" >&2; }
 proclaim_success() { :; }
 tell_settings()  { :; }
 service_config() { :; }
+echo_do()        { echo "$@" >&2; "$@"; }
 
 # Versioning
 mt6_version()    { echo "20260403"; }
@@ -86,7 +87,7 @@ get_jail_ip() {
 }
 get_jail_ip6()             { echo "fd7a:e5cd:1fc1:c597:dead:beef:cafe:00fe"; }
 get_jail_data()            { echo "${ZFS_DATA_MNT}/$1"; }
-get_jail_host_etc()        { echo "$(get_jail_data "$1")/etc"; }
+get_jail_host_etc()        { echo "${ZFS_DATA_MNT}/etc/$1"; }
 safe_jailname()            { echo "$1" | tr '.-' '__'; }
 add_jail_conf()            { :; }
 add_jail_conf_d()          { :; }
@@ -100,6 +101,7 @@ stage_fbsd_pkgbase()       { :; }
 stage_pkg_install()        { :; }
 stage_port_install()       { :; }
 stage_exec()               { :; }
+echo_stage_exec()          { :; }
 stage_sysrc()              { :; }
 stage_make_conf()          { :; }
 stage_listening()          { :; }
@@ -116,6 +118,7 @@ get_public_ip6()           { :; }
 get_public_facing_nic()    { :; }
 install_pfrule()           { :; }
 install_acme_sh()          { :; }
+install_minimal_hosts()    { :; }
 
 # Config / util
 sed_inplace()              { sed -i.bak "$@"; }
