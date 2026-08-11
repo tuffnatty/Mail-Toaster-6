@@ -25,31 +25,39 @@ zfs_mountpoint_exists()
 
 zfs_create_fs()
 {
-	if zfs_filesystem_exists "$1"; then return; fi
+	# snapshot /data before provisioning
+	if zfs_filesystem_exists "$1"; then
+		[ "${ZFS_SNAPSHOT_DATA:-0}" = 0 ] ||
+			[ "$(zfs list -Hpo written "$1")" = 0 ] ||
+				echo_do \
+				zfs snapshot "$1@before-$PROVISION_TIMESTAMP"
+		return
+	fi
+
 	if [ -n "${2:-}" ] && zfs_mountpoint_exists "$2"; then return; fi
 
 	if echo "$1" | grep -q "$ZFS_DATA_VOL"; then
 		if ! zfs_filesystem_exists "$ZFS_DATA_VOL"; then
-			tell_status "zfs create -o mountpoint=$ZFS_DATA_MNT $ZFS_DATA_VOL"
+			echo_do \
 			zfs create -o mountpoint="$ZFS_DATA_MNT" "$ZFS_DATA_VOL" || exit 1
 		fi
 	fi
 
 	if echo "$1" | grep -q "$ZFS_JAIL_VOL"; then
 		if ! zfs_filesystem_exists "$ZFS_JAIL_VOL"; then
-			tell_status "zfs create -o mountpoint=$ZFS_JAIL_MNT $ZFS_JAIL_VOL"
+			echo_do \
 			zfs create -o mountpoint="$ZFS_JAIL_MNT" "$ZFS_JAIL_VOL" || exit 1
 		fi
 	fi
 
 	if [ -z "$2" ]; then
-		tell_status "zfs create $1"
+		echo_do \
 		zfs create "$1" || exit 1
 		echo "done"
 		return
 	fi
 
-	tell_status "zfs create -o mountpoint=$2 $1"
+	echo_do \
 	zfs create -o mountpoint="$2" "$1" || exit 1
 	echo "done"
 }
@@ -59,24 +67,29 @@ zfs_destroy_fs()
 	local _fs="$1"
 	local _flags=${2-}
 
+	# support specifying a mountpoint
+	case "$_fs" in /*) _fs="$(mount -t zfs | awk -v fs="$_fs" '$3 == fs { print $1 }')" ;; esac
+
 	if ! zfs_filesystem_exists "$_fs"; then return; fi
 
 	if [ -n "$_flags" ]; then
-		echo "zfs destroy $_flags $_fs"
+		echo_do \
 		zfs destroy "$_flags" "$_fs" || exit 1
 	else
-		echo "zfs destroy $_fs"
+		echo_do \
 		zfs destroy "$_fs" || exit 1
 	fi
 }
 
 base_snapshot_exists()
 {
-	if zfs_snapshot_exists "$BASE_SNAP"; then
+	local _base_snap="$BASE_SNAP"
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || _base_snap="$ZFS_JAIL_VOL/pkgbase-$FBSD_REL_VER@${FBSD_PATCH_VER}"
+	if zfs_snapshot_exists "$_base_snap"; then
 		return 0
 	fi
 
-	echo "$BASE_SNAP does not exist, use 'provision base' to create it"
+	echo "$_base_snap does not exist, use 'provision base' to create it"
 	return 1
 }
 
@@ -86,6 +99,12 @@ rename_staged_to_ready()
 
 	# remove stages that failed promotion
 	zfs_destroy_fs "$_new_vol"
+
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		local _new_mnt="$ZFS_JAIL_MNT/${1}.ready"
+		echo_do mv -fh "$ZFS_JAIL_MNT/stage" "$_new_mnt"
+		return
+	fi
 
 	# get the wait over with before shutting down production jail
 	local _tries=0
@@ -108,18 +127,27 @@ rename_active_to_last()
 	local ACTIVE="$ZFS_JAIL_VOL/$1"
 	local LAST="$ACTIVE.last"
 
-	zfs_destroy_fs "$LAST"
+	zfs_destroy_fs "$LAST" -r  # because of snapshots
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		local ACTIVE_MNT="$ZFS_JAIL_MNT/$1"
+		[ ! -L "$ACTIVE_MNT.last" ] || echo_do rm "$ACTIVE_MNT.last"
+	fi
 
-	if ! zfs_filesystem_exists "$ACTIVE"; then return; fi
+	if ! zfs_filesystem_exists "$ACTIVE"; then
+		if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ] && zfs_mountpoint_exists "$(readlink -f "$ACTIVE_MNT")"; then
+			echo_do mv -fh "$ACTIVE_MNT" "$ACTIVE_MNT.last"
+		fi
+		return
+	fi
 
 	local _tries=0
 	local _zfs_rename="zfs rename $ACTIVE $LAST"
-	echo "$_zfs_rename"
-	until $_zfs_rename; do
+	until echo_do $_zfs_rename; do
 		if [ "$_tries" -gt 3 ]; then
 			echo "trying to force rename ($_tries)"
 			_zfs_rename="zfs rename -f $ACTIVE $LAST"
 		fi
+		echo_do \
 		/bin/sync
 		echo "waiting for ZFS filesystem to quiet ($_tries)"
 		_tries=$((_tries + 1))
@@ -129,6 +157,11 @@ rename_active_to_last()
 
 rename_ready_to_active()
 {
-	echo "zfs rename $ZFS_JAIL_VOL/${1}.ready $ZFS_JAIL_VOL/$1"
+	if [ "${ZFS_REPLICATION_FRIENDLY:-0}" != 0 ]; then
+		echo_do mv -fh "$ZFS_JAIL_MNT/${1}.ready" "$ZFS_JAIL_MNT/$1" || exit 1
+		return
+	fi
+
+	echo_do \
 	zfs rename "$ZFS_JAIL_VOL/${1}.ready" "$ZFS_JAIL_VOL/$1" || exit 1
 }

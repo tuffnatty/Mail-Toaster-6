@@ -132,6 +132,25 @@ $(get_jail_ip6 "$_jail")
 EO_PF_TABLE
 }
 
+configure_ssh_pf_rdr()
+{
+	local _jail="$1" _port="$2" _pf_etc
+	_pf_etc="$(get_jail_etc "$_jail")/pf.conf.d"
+
+	configure_pf_jail_table "$_jail"
+
+	store_config "$_pf_etc/rdr.conf" <<EO_PF_RDR
+rdr inet  proto tcp from any to <ext_ip4> port { $_port } -> $(get_jail_ip  "$_jail")
+rdr inet6 proto tcp from any to <ext_ip6> port { $_port } -> $(get_jail_ip6 "$_jail")
+EO_PF_RDR
+
+	store_config "$_pf_etc/filter.conf" <<EO_PF_FILTER
+pass in quick proto tcp from any to <$_jail> port { $_port } \
+	flags S/SA synproxy state \
+	(max-src-conn 10, max-src-conn-rate 8/15, overload <bruteforce> flush global)
+EO_PF_FILTER
+}
+
 get_reverse_ip()
 {
 	local _jail_ip; _jail_ip=$(get_jail_ip "$1")
@@ -153,7 +172,7 @@ get_reverse_ip6()
 
 jail_conf_header()
 {
-	local _path="$ZFS_JAIL_MNT/$1"
+	local _path="$ZFS_JAIL_MNT/\$name"
 	if [ "$1" = "base" ]; then _path="$BASE_MNT"; fi
 
 	cat <<EO_JAIL_CONF_HEAD
@@ -243,16 +262,13 @@ stop_jail()
 	tell_status "stopping jail $1"
 	local _safe; _safe=$(safe_jailname "$1")
 	if jail_is_running "$_safe"; then
-		echo "service jail stop $_safe"
-		if ! service jail stop "$_safe"; then
-			echo "jail -r $_safe"
-			if jail -r "$_safe" 2>/dev/null; then echo "removed"; fi
+		if ! echo_do service jail stop "$_safe"; then
+			if echo_do jail -r "$_safe" 2>/dev/null; then echo "removed"; fi
 		fi
 	fi
 
 	if jail_is_running "$_safe"; then
-		echo "jail -r $_safe"
-		if jail -r "$_safe" 2>/dev/null; then echo "removed"; fi
+		if echo_do jail -r "$_safe" 2>/dev/null; then echo "removed"; fi
 	fi
 }
 
@@ -264,13 +280,18 @@ jail_rename()
 	fi
 
 	echo "renaming $1 to $2"
+	echo_do \
 	service jail stop "$1" || exit 1
 
 	for _f in data jails
 	do
+		echo_do \
 		zfs unmount "$ZFS_VOL/$_f/$1"
+		echo_do \
 		zfs rename "$ZFS_VOL/$_f/$1" "$ZFS_VOL/$_f/$2" || exit 1
+		echo_do \
 		zfs set mountpoint="/$_f/$2" "$ZFS_VOL/$_f/$2" || exit 1
+		echo_do \
 		zfs mount "$ZFS_VOL/$_f/$2"
 	done
 
@@ -278,6 +299,7 @@ jail_rename()
 		-e "/^$1[[:space:]]/ s/$1/$2/" \
 		/etc/jail.conf || exit 1
 
+	echo_do \
 	service jail start "$2"
 
 	echo "Don't forget to update your PF and/or Haproxy rules"
@@ -295,12 +317,15 @@ assure_jail()
 enable_jail()
 {
 	case " $(sysrc -n jail_list) " in *" $1 "*)
-		#echo "jail $1 already enabled at startup"
+		tell_status "jail $1 already enabled at startup"
 		return ;;
 	esac
 
 	tell_status "enabling jail $1 at startup"
+	echo_do \
 	sysrc jail_list+=" $1"
+	tell_status "enabling jail $1 pkg audit"
+	echo_do \
 	sysrc -f /etc/periodic.conf security_status_pkgaudit_jails+=" $1"
 }
 
@@ -379,12 +404,13 @@ warn_stale_jail_conf()
 add_jail_conf()
 {
 	local _jail_ip; _jail_ip=$(get_jail_ip "$1");
+	local _vnet="${2:-}"
 	if [ -z "$_jail_ip" ]; then
 		fatal_err "can't determine IP for $1"
 	fi
 
 	if [ -d /etc/jail.conf.d ]; then
-		add_jail_conf_d "$1"
+		add_jail_conf_d "$1" "$_vnet"
 		return
 	fi
 
@@ -404,8 +430,7 @@ add_jail_conf()
 	tell_status "adding $1 to /etc/jail.conf"
 	echo "$1	{$(get_safe_jail_path "$1")
 $(jail_conf_mount "$1")
-		ip4.addr = $JAIL_NET_INTERFACE|${_jail_ip};
-		ip6.addr = $JAIL_NET_INTERFACE|$(get_jail_ip6 "$1");${JAIL_CONF_EXTRA}
+$(get_jail_network_config "$1" "$_vnet")${JAIL_CONF_EXTRA}
 	}" | tee -a /etc/jail.conf
 }
 
@@ -416,45 +441,76 @@ add_jail_conf_d()
 		fatal_err "can't determine IP for $1"
 	fi
 
-	# configure IPv6 if the system has an external/public IPv6 address
-	local _IP6=""
-	get_public_ip6
-	if [ -n "$PUBLIC_IP6" ]; then
-		_IP6="ip6.addr = $JAIL_NET_INTERFACE|$(get_jail_ip6 "$1");"
-	fi
+	# vnet support
+	## configure IPv6 if the system has an external/public IPv6 address
+	#local _IP6=""
+	#get_public_ip6
+	#if [ -n "$PUBLIC_IP6" ]; then
+	#	_IP6="ip6.addr = $JAIL_NET_INTERFACE|$(get_jail_ip6 "$1");"
+	#fi
 
-	local _path="$ZFS_JAIL_MNT/$1"
-	if [ "$1" = "base" ]; then _path="$BASE_MNT"; fi
-
-	# base redirects no ports, so the host has no pf rules to run for it
-	local _pf_exec=""
-	if [ "$1" != "base" ]; then
-		_pf_exec="
-		exec.created = \"$(get_pfrule_path) load $1\";
-		exec.poststop = \"$(get_pfrule_path) unload $1\";"
-	fi
+	# jail_conf_header
+	#local _path="$ZFS_JAIL_MNT/$1"
+	#if [ "$1" = "base" ]; then _path="$BASE_MNT"; fi
+	#
+	## base redirects no ports, so the host has no pf rules to run for it
+	#local _pf_exec=""
+	#if [ "$1" != "base" ]; then
+	#	_pf_exec="
+	#	exec.created = \"$(get_pfrule_path) load $1\";
+	#	exec.poststop = \"$(get_pfrule_path) unload $1\";"
+	#fi
 
 	local _conf; _conf="/etc/jail.conf.d/$(safe_jailname "$1").conf"
 
 	store_config "$_conf" "update" <<EO_JAIL_RC
+$(jail_conf_header "$1")
+
 $(safe_jailname "$1")	{$(get_safe_jail_path "$1")
-		host.hostname = \$name;
-		path = "$_path";
 $(jail_conf_mount "$1")
-		devfs_ruleset=$JAIL_DEVFS_RULESET;
-
-		ip4.addr = $JAIL_NET_INTERFACE|${_jail_ip};
-		${_IP6}${JAIL_CONF_EXTRA}
-
-		exec.clean;
-		exec.start = "/bin/sh /etc/rc";
-		exec.stop = "/bin/sh /etc/rc.shutdown";$_pf_exec
+$(get_jail_network_config "$1" "$2")${JAIL_CONF_EXTRA}
 	}
 EO_JAIL_RC
 
 	assure_jail_conf_devfs "$1" "$_conf"
 	migrate_jail_conf "$1" "$_conf"
 	warn_stale_jail_conf "$1" "$_conf"
+}
+
+get_jail_network_config()
+{
+	# base redirects no ports, so the host has no pf rules to run for it
+	[ "$1" = "base" ] || cat <<EO_COMMON
+		exec.created = "$(get_pfrule_path) load $1";
+		exec.poststop = "$(get_pfrule_path) unload $1";
+EO_COMMON
+
+	if [ "$2" = vnet ]; then
+		local hostif jailif _n="${_jail_ip##*.}"
+		hostif="$(printf '%s' "e${_n}a_$1" | head -c 15)"
+		jailif="$(printf '%s' "e${_n}b_$1" | head -c 15)"
+		printf '%s' "
+		vnet;
+		vnet.interface = \"$jailif\";
+		exec.prestart += \"ifconfig epair${_n} create\";
+		exec.prestart += \"ifconfig $JAIL_VNET_INTERFACE addm epair${_n}a\";
+		exec.prestart += \"ifconfig epair${_n}a up name $hostif\";
+		exec.prestart += \"ifconfig epair${_n}b up name $jailif\";
+		exec.start = \"/sbin/ifconfig $jailif inet $JAIL_VNET_PREFIX.${_n}/24 up\";
+		exec.start += \"/sbin/route add default $JAIL_VNET_PREFIX.1\";
+        	exec.start += \"/bin/sh /etc/rc\";
+		exec.poststop += \"ifconfig $JAIL_VNET_INTERFACE deletem $hostif\";
+		exec.poststop += \"ifconfig $hostif destroy\";"
+		return 0
+	fi
+
+	printf '%s' "
+		ip4.addr = $JAIL_NET_INTERFACE|${_jail_ip};"
+	get_public_ip6
+	if [ -n "$PUBLIC_IP6" ]; then
+		printf '%s' "
+		ip6.addr = $JAIL_NET_INTERFACE|$(get_jail_ip6 "$1");"
+	fi
 }
 
 add_automount()

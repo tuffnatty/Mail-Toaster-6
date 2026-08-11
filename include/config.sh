@@ -17,34 +17,47 @@ mt6_defaults()
 	export JAIL_NET_PREFIX=${JAIL_NET_PREFIX:-"172.16.15"}
 	export JAIL_NET_MASK=${JAIL_NET_MASK:-"/19"}
 	export JAIL_NET_INTERFACE=${JAIL_NET_INTERFACE:-"lo1"}
-	export JAIL_ORDERED_LIST="syslog base dns mysql clamav spamassassin foundationdb vpopmail haraka webmail munin haproxy rspamd stalwart dovecot redis geoip nginx mailtest apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix puppeteer snappymail knot nsd bsd_cache wildduck zonemta centos ubuntu bhyve-ubuntu mailman git"
+	export JAIL_ORDERED_LIST="syslog base dns mysql clamav spamassassin foundationdb vpopmail haraka webmail munin haproxy rspamd stalwart dovecot redis geoip nginx mailtest apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix puppeteer snappymail knot nsd bsd_cache wildduck zonemta centos ubuntu bhyve-ubuntu mailman git postfixadmin gitea forgejo nginxfront"
+	export JAIL_VNET_INTERFACE=${JAIL_VNET_INTERFACE:-"bridge0"}
+	export JAIL_VNET_PREFIX=${JAIL_VNET_PREFIX:-"172.16.16"}
 
 	export ZFS_VOL=${ZFS_VOL:-"zroot"}
 	export ZFS_BHYVE_VOL="${ZFS_BHYVE_VOL:-$ZFS_VOL}"
 	export ZFS_JAIL_MNT=${ZFS_JAIL_MNT:-"/jails"}
 	export ZFS_DATA_MNT=${ZFS_DATA_MNT:-"/data"}
+	export ZFS_REPLICATION_FRIENDLY=${ZFS_REPLICATION_FRIENDLY:-"0"}
+	export ZFS_SNAPSHOT_DATA=${ZFS_SNAPSHOT_DATA:-"0"}
+	export ZFS_SNAPSHOT_PROVISIONED="${ZFS_SNAPSHOT_PROVISIONED:-0}"
 	export FBSD_MIRROR=${FBSD_MIRROR:-"ftp://ftp.freebsd.org"}
 
 	export TLS_LIBRARY=${TLS_LIBRARY:-""}
+	export TOASTER_PKGBASE=${TOASTER_PKGBASE:-0}
 	export TOASTER_BASE_MTA=${TOASTER_BASE_MTA:-""}
 	export TOASTER_BASE_PKGS=${TOASTER_BASE_PKGS:-"pkg ca_root_nss"}
 	export TOASTER_BUILD_DEBUG=${TOASTER_BUILD_DEBUG:-"0"}
 	export TOASTER_EDITOR=${TOASTER_EDITOR:-"vim"}
 	export TOASTER_EDITOR_PORT=${TOASTER_EDITOR_PORT:-"vim-tiny"}
+	export TOASTER_INGRESS_JAIL=${TOASTER_INGRESS_JAIL:-"haproxy"}
 	# See https://github.com/msimerson/Mail-Toaster-6/wiki/MySQL
 	export TOASTER_MYSQL=${TOASTER_MYSQL:-"1"}
 	export TOASTER_MARIADB=${TOASTER_MARIADB:-"0"}
 	export TOASTER_NGINX_ACME=${TOASTER_NGINX_ACME:-"0"}
+	export TOASTER_NGINX_LOG_DIR=${TOASTER_NGINX_LOG_DIR:-"/var/log/nginx"}
+	export TOASTER_NGINX_LOG_FORMAT=${TOASTER_NGINX_LOG_FORMAT:-"combined"}
 	export TOASTER_NTP=${TOASTER_NTP:-"chrony"}
 	export TOASTER_MSA=${TOASTER_MSA:-"haraka"}
 	export TOASTER_MTA=${TOASTER_MTA:-"haraka"}
 	export TOASTER_PKG_AUDIT=${TOASTER_PKG_AUDIT:-"0"}
 	export TOASTER_PKG_BRANCH=${TOASTER_PKG_BRANCH:-"latest"}
+	export TOASTER_PKG_REPO_NAME=${TOASTER_PKG_REPO_NAME:-""}
+	export TOASTER_PKG_REPO_URL=${TOASTER_PKG_REPO_URL:-""}
 	export TOASTER_USE_TMPFS=${TOASTER_USE_TMPFS:-"0"}
+	export TOASTER_VIRTUAL_DOMAIN_MANAGER=${TOASTER_VIRTUAL_DOMAIN_MANAGER:-"vpopmail"}
 	export TOASTER_VPOPMAIL_CLEAR=${TOASTER_VPOPMAIL_CLEAR:-"1"}
 	export TOASTER_VPOPMAIL_EXT=${TOASTER_VPOPMAIL_EXT:-"0"}
 	export TOASTER_QMHANDLE=${TOASTER_QMHANDLE:-"0"}
 	export TOASTER_WEBMAIL_PROXY=${TOASTER_WEBMAIL_PROXY:-"haproxy"}
+	export NEWSYSLOG_COMPRESSION_METHOD=${NEWSYSLOG_COMPRESSION_METHOD:-"legacy"}
 
 	# If your hosts public facing IP(s) are not bound to a local interface, configure it here.
 	export PUBLIC_IP4=${PUBLIC_IP4:-""}
@@ -112,16 +125,26 @@ export JAIL_NET_PREFIX="172.16.15"
 export JAIL_NET_MASK="/19"
 export JAIL_NET_INTERFACE="lo1"
 export JAIL_NET6="$(get_random_ip6net)"
+export JAIL_VNET_INTERFACE="bridge0"
+export JAIL_VNET_PREFIX="172.16.16"
 export ZFS_VOL="zroot"
 export ZFS_JAIL_MNT="/jails"
 export ZFS_DATA_MNT="/data"
+export ZFS_REPLICATION_FRIENDLY="0"  # set to 1 to disable zfs renames and use symlinks instead
+export ZFS_SNAPSHOT_DATA="0"  # set to 1 to snapshot modified /data volumes before provisioning
+export ZFS_SNAPSHOT_PROVISIONED="0"  # set to 1 to snapshot every freshly provisioned jail
+export TOASTER_PKGBASE="0"  # set to 1 to use pkgbase
 export TOASTER_EDITOR="vim"
 export TOASTER_EDITOR_PORT="vim-tiny"
+export TOASTER_INGRESS_JAIL="haproxy"
+export TOASTER_MARIADB="0"
 export TOASTER_MSA="haraka"
 export TOASTER_MTA="haraka"
 export TOASTER_MYSQL="1"
 export TOASTER_MYSQL_PASS=""
 export TOASTER_NGINX_ACME="0"
+export TOASTER_NGINX_LOG_DIR=""  # /data/log/nginx for log persistence, or syslog: for logging to syslog
+export TOASTER_NGINX_LOG_FORMAT=""  # set to "main" to see X-Forwarded-For addresses
 export TOASTER_NRPE=""
 export TOASTER_NTP=""
 export TOASTER_BASE_METHOD="$(default_base_method)"  # fetch | bsdinstall | pkgbase
@@ -129,10 +152,14 @@ export TOASTER_BASE_MTA=""
 export TOASTER_BASE_PKG_BRANCH=""   # pkgbase: base_release_N (default), base_latest, base_weekly
 export TOASTER_PKG_AUDIT="0"
 export TOASTER_PKG_BRANCH="latest"
+export TOASTER_PKG_REPO_NAME=""  # local pkg repository name
+export TOASTER_PKG_REPO_URL=""  # local pkg repository URL (just the scheme://host part)
 export TOASTER_USE_TMPFS="0"
+export TOASTER_VIRTUAL_DOMAIN_MANAGER="vpopmail"
 export TOASTER_VPOPMAIL_CLEAR="1"
 export TOASTER_VPOPMAIL_EXT="0"
 export TOASTER_WEBMAIL_PROXY="haproxy"
+export NEWSYSLOG_COMPRESSION_METHOD="legacy"  # set to "none" to disable log compression redundant on ZFS
 
 EO_MT_CONF
 

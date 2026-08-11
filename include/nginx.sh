@@ -9,7 +9,12 @@ install_nginx()
 	tell_status "installing nginx"
 	stage_pkg_install nginx
 
-	install_nginx_newsyslog
+	case "$TOASTER_NGINX_LOG_DIR" in
+		syslog:*) ;;
+		*)	[ -d "$TOASTER_NGINX_LOG_DIR" ] || mkdir -p "$TOASTER_NGINX_LOG_DIR"
+			install_nginx_newsyslog
+			;;
+	esac
 
 	if [ "$TOASTER_WEBMAIL_PROXY" = "nginx" ] && [ "$TOASTER_NGINX_ACME" = "1" ]; then
 		stage_pkg_install nginx-acme
@@ -38,24 +43,18 @@ install_nginx()
 
 install_nginx_newsyslog()
 {
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-newsyslog
 	stage_enable_newsyslog
 
 	tell_status "enabling nginx log file rotation"
 	store_config "$STAGE_MNT/etc/newsyslog.conf.d/nginx.conf" <<EO_NG_NSL
 # rotate nightly (default)
-/var/log/nginx/*.log		root:wheel	644	 7     *   @T00   BCGX  /var/run/nginx.pid 30
+$TOASTER_NGINX_LOG_DIR/*.log		root:wheel	644	 7     *   @T00   BCGX  /var/run/nginx.pid 30
 
 # rotate when file size reaches 20M
-#/var/log/nginx/*.log		root:wheel	644	 7     20480	 *   BCGX  /var/run/nginx.pid 30
+#$TOASTER_NGINX_LOG_DIR/*.log		root:wheel	644	 7     20480	 *   BCGX  /var/run/nginx.pid 30
 EO_NG_NSL
 
-}
-
-contains() {
-	string="$1"
-	substring="$2"
-	if [ "${string#*"$substring"}" != "$string" ]; then return 0; fi
-	return 1
 }
 
 configure_nginx_server_d()
@@ -115,12 +114,22 @@ configure_nginx()
 
 	stage_sysrc nginx_flags='-c /data/etc/nginx/nginx.conf'
 
+	local _extra=""
+	[ "$TOASTER_NGINX_LOG_FORMAT" != main ] || _extra="
+	log_format  main  '\$remote_addr - \$remote_user [\$time_local] \"\$request\" '
+			  '\$status \$body_bytes_sent \"\$http_referer\" '
+			  '\"\$http_user_agent\" \"\$http_x_forwarded_for\"';"
+
 	store_config "$_etcdir/nginx.conf" <<EO_NGINX_CONF
 # load_module /usr/local/libexec/nginx/ngx_http_acme_module.so;
 load_module /usr/local/libexec/nginx/ngx_mail_module.so;
+$([ "$TOASTER_INGRESS_JAIL" != haproxy ] || echo '
 load_module /usr/local/libexec/nginx/ngx_stream_module.so;
+')
 
 worker_processes  1;
+
+error_log $TOASTER_NGINX_LOG_DIR/error.log;
 
 events {
 	worker_connections  256;
@@ -129,6 +138,8 @@ events {
 http {
 	include       /usr/local/etc/nginx/mime.types;
 	default_type  application/octet-stream;
+	$_extra
+	access_log $TOASTER_NGINX_LOG_DIR/access.log $TOASTER_NGINX_LOG_FORMAT;
 
 	sendfile        on;
 	gzip on;
@@ -140,10 +151,8 @@ http {
 
 	keepalive_timeout  65;
 
-	set_real_ip_from $(get_jail_ip haproxy);
-	set_real_ip_from $(get_jail_ip webmail);
-	set_real_ip_from $(get_jail_ip6 haproxy);
-	set_real_ip_from $(get_jail_ip6 webmail);
+	set_real_ip_from $(get_jail_ip "$TOASTER_INGRESS_JAIL");
+	set_real_ip_from $(get_jail_ip6 "$TOASTER_INGRESS_JAIL");
 	real_ip_header   X-Forwarded-For;
 	real_ip_recursive on;
 	client_max_body_size 25m;
@@ -166,7 +175,7 @@ start_nginx()
 {
 	tell_status "starting nginx"
 	stage_sysrc nginx_enable=YES
-	stage_exec service nginx start || stage_exec service nginx restart
+	echo_stage_exec service nginx start || echo_stage_exec service nginx restart
 }
 
 test_nginx() {

@@ -20,7 +20,7 @@ setup_file() {
   local _fns="$BATS_FILE_TMPDIR/mysql_fns_only.sh"
 
   # Strip the execution block so setup() can source function definitions only.
-  awk '/^base_snapshot_exists/{exit} {print}' \
+  awk '/^tell_settings/{exit} {print}' \
     "$BATS_TEST_DIRNAME/../../provision/mysql.sh" > "$_fns"
 
   export MT6_TEST_ENV=1
@@ -251,7 +251,7 @@ EOF
 # --- start_mysql behavior ---
 
 @test "mysql - start calls service mysql-server start" {
-  stage_exec()  { echo "EXEC:$*"; }
+  echo_stage_exec()  { echo "EXEC:$*"; }
   configure_mysql_root_password() { :; }
   configure_mysql_keys() { :; }
   run start_mysql
@@ -263,7 +263,7 @@ EOF
 
 @test "mysql - test checks port 3306" {
   stage_listening() { echo "PORT:$*"; }
-  stage_exec() { :; }
+  echo_stage_exec() { :; }
   run test_mysql
   assert_success
   assert_output --partial "PORT:3306"

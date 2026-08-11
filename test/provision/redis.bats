@@ -22,6 +22,8 @@ bind 127.0.0.1
 protected-mode yes
 EOF
 
+  pkg() { :; }
+
   # shellcheck source=/dev/null
   . "$BATS_TEST_DIRNAME/../../provision/redis.sh"
 }

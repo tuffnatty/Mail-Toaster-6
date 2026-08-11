@@ -4,6 +4,7 @@ setup() {
   load '../test_helper/bats-support/load'
   load '../test_helper/bats-assert/load'
   load '../../include/util.sh'
+  function setvar { eval "$1"='"$2"'; }  # bash has no setvar
 }
 
 @test "mt6_version - outputs 8-digit date" {
@@ -19,10 +20,16 @@ setup() {
 }
 
 @test "freebsd_major - root dir chroots and extracts major version" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  mkdir "$tmpdir/bin"
+  touch "$tmpdir/bin/freebsd-version"
+  chmod a+x "$tmpdir/bin/freebsd-version"
   chroot() { echo "14.2-RELEASE-p1"; }
-  run freebsd_major /stage
+  run freebsd_major "$tmpdir"
   assert_success
   assert_output "14"
+
+  rm -rf "$tmpdir"
 }
 
 @test "dec_to_hex - 255" {
@@ -43,6 +50,42 @@ setup() {
 @test "dec_to_hex - 16" {
   run dec_to_hex 16
   assert_output "0010"
+}
+
+@test "overwrite_if_differs - new file" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  local tmpfile="$tmpdir/new_file"
+
+  echo "hello" | overwrite_if_differs "$tmpfile"
+
+  run cat "$tmpfile"
+  assert_output "hello"
+
+  rm -rf "$tmpdir"
+}
+
+@test "overwrite_if_differs - preserve identical" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  local tmpfile="$tmpdir/new_file"
+
+  echo "hello" > "$tmpfile"
+  run overwrite_if_differs "$tmpfile" verbose <<<"hello"
+  assert_output --regexp ' has not changed'
+
+  rm -rf "$tmpdir"
+}
+
+@test "overwrite_if_differs - overwrite different" {
+  local tmpdir; tmpdir=$(mktemp -d)
+  local tmpfile="$tmpdir/new_file"
+
+  echo "hello1" > "$tmpfile"
+  echo "hello2" | overwrite_if_differs "$tmpfile"
+
+  run cat "$tmpfile"
+  assert_output "hello2"
+
+  rm -rf "$tmpdir"
 }
 
 @test "store_config - new file" {
@@ -393,4 +436,89 @@ setup() {
 @test "reverse_list - two items" {
   run reverse_list a b
   assert_output "b a "
+}
+
+@test "lstrip / //abc" {
+  run lstrip / //abc
+  assert_output "abc"
+}
+
+@test "lstrip / ''" {
+  run lstrip / ""
+  assert_output ""
+}
+
+@test "rstrip / abc//" {
+  run rstrip / abc//
+  assert_output "abc"
+}
+
+@test "rstrip / ''" {
+  run rstrip / ""
+  assert_output ""
+}
+
+@test "dirname" {
+  for s in \
+    '' \
+    ' ' \
+    / \
+    // \
+    //etc/ \
+    //etc//rc.d//anything \
+    ../a \
+    ./a \
+    a/../q
+  do
+    run dirname "$s"
+    assert_success
+    assert_output "$(command dirname "$s")"
+  done
+}
+
+# contains() - pure string membership test
+
+@test "contains - substring found" {
+  run contains "hello world" "world"
+  assert_success
+}
+
+@test "contains - substring not found" {
+  run contains "hello world" "foo"
+  assert_failure
+}
+
+@test "contains - exact match" {
+  run contains "hello" "hello"
+  assert_success
+}
+
+@test "contains - prefix match" {
+  run contains "hello world" "hello"
+  assert_success
+}
+
+@test "contains - suffix match" {
+  run contains "hello world" "world"
+  assert_success
+}
+
+@test "contains - case sensitive (no match)" {
+  run contains "Hello World" "hello"
+  assert_failure
+}
+
+@test "contains - substring longer than string" {
+  run contains "hi" "hello"
+  assert_failure
+}
+
+@test "contains - listen keyword present" {
+  run contains "listen 80; server_name example.com;" "listen"
+  assert_success
+}
+
+@test "contains - listen keyword absent" {
+  run contains "server_name example.com;" "listen"
+  assert_failure
 }
