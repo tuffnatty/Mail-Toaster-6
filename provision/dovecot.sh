@@ -5,6 +5,7 @@ set -e -u
 . mail-toaster.sh
 service_config dovecot
 export DOVECOT_DEFAULT_MAILBOX_QUOTA="${DOVECOT_DEFAULT_MAILBOX_QUOTA:-"1G"}"
+export DOVECOT_FORWARD_SET_REPLY_TO_ORIG_RECIPIENT="${DOVECOT_FORWARD_SET_REPLY_TO_ORIG_RECIPIENT:-0}"
 export DOVECOT_GREETING="${DOVECOT_GREETING:-"Mail Toaster (Dovecot) ready."}"
 
 export JAIL_START_EXTRA="allow.sysvipc=1"
@@ -47,7 +48,7 @@ install_dovecot()
 }
 
 configure_dovecot_local_conf() {
-	local _localconf
+	local _localconf _plugins_extra=""
 	_localconf="$(get_jail_data dovecot)/etc/local.conf"
 
 	local _listen='listen = *'
@@ -56,6 +57,13 @@ configure_dovecot_local_conf() {
 	if grep -q "/data/etc/ssl/" $_localconf; then
 		tell_status "Upgrading $_localconf to /data/etc/tls/"
 		sed_inplace 's,/data/etc/ssl/,/data/etc/tls/,' "$_localconf"
+	fi
+
+	if [ "${DOVECOT_FORWARD_SET_REPLY_TO_ORIG_RECIPIENT:-0}" = 1 ]; then
+		_plugin_extra='
+
+  sieve_redirect_envelope_from = orig_recipient
+  sieve_before = file:/usr/local/lib/dovecot/sieve/before-bounce-loop.sieve'
 	fi
 
 	store_config "$_localconf" <<EO_DOVECOT_LOCAL
@@ -210,6 +218,7 @@ plugin {
   sieve_pipe_bin_dir = /usr/local/lib/dovecot/sieve
 
   sieve_global_extensions = +vnd.dovecot.pipe
+  $_plugin_extra
 }
 
 namespace inbox {
@@ -514,6 +523,26 @@ EO_REPORT_SPAM_SA
 	fi
 }
 
+configure_sieve_forward() {
+	if [ "${DOVECOT_FORWARD_SET_REPLY_TO_ORIG_RECIPIENT:-0}" = 1 ]; then
+		tee "$SIEVE_DIR/before-bounce-loop.sieve" <<'EOF_SIEVE_BOUNCE'
+require ["envelope", "imap4flags"];
+#
+# Catch and keep bounce messages locally so they don't loop
+if anyof (
+    envelope "from" "",
+    header :contains "from" ["MAILER-DAEMON", "postmaster"],
+    header :contains "auto-submitted" ["failure", "auto-generated"]
+) {
+    addflag "\\Flagged";
+    stop;
+}
+EOF_SIEVE_BOUNCE
+               compile_sieve report-spam.sieve
+	fi
+}
+
+
 configure_sieve()
 {
 	SIEVE_DIR="$STAGE_MNT/usr/local/lib/dovecot/sieve"
@@ -533,6 +562,8 @@ configure_sieve()
 
 	configure_sieve_learn_rspamd
 	configure_sieve_learn_spamassassin
+
+	configure_sieve_forward
 }
 
 configure_dovecot_pf()
