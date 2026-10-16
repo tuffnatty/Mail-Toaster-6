@@ -276,7 +276,9 @@ configure_roundcube_plugins()
 			;;
 		managesieve)
 			tell_status "configure the $_plugin plugin"
-			sed -e "/'managesieve_host'/ s/localhost/dovecot/" \
+			sed \
+				-e "/'managesieve_host'/ s/localhost/dovecot/" \
+				-e "/'managesieve_forward'/ s/0/1/" \
 				< "$_plugins_dir/managesieve/config.inc.php.dist" \
 				> "$_plugins_dir/managesieve/config.inc.php"
 			;;
