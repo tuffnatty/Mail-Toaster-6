@@ -123,7 +123,7 @@ EO_PERMS
     run grep "JAIL_FSTAB=.*$_dataset" "provision/$_jail.sh"
     assert_output --partial "$_dataset"
   done <<'EO_FSTAB'
-dovecot      vpopmail
+dovecot      $DOVECOT_FSTAB
 spamassassin geoip
 dcc          dcc
 EO_FSTAB

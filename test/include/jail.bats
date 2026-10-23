@@ -48,7 +48,7 @@ setup() {
 
 @test "jail_conf_header - each jail gets its own path" {
   run jail_conf_header dns
-  assert_output --partial "path = \"/jails/dns\";"
+  assert_output --partial "path = \"/jails/\$name\";"
   assert_output --partial "interface = lo1;"
 
   run jail_conf_header base

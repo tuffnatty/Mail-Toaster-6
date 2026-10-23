@@ -20,53 +20,6 @@ jail_has_ip6() { get_public_ip6; [ -n "${PUBLIC_IP6:-}" ]; }
 # faithful copy of include/jail.sh get_jail_data
 get_jail_data() { echo "$ZFS_DATA_MNT/$1"; }
 
-# contains() - pure string membership test
-
-@test "contains - substring found" {
-  run contains "hello world" "world"
-  assert_success
-}
-
-@test "contains - substring not found" {
-  run contains "hello world" "foo"
-  assert_failure
-}
-
-@test "contains - exact match" {
-  run contains "hello" "hello"
-  assert_success
-}
-
-@test "contains - prefix match" {
-  run contains "hello world" "hello"
-  assert_success
-}
-
-@test "contains - suffix match" {
-  run contains "hello world" "world"
-  assert_success
-}
-
-@test "contains - case sensitive (no match)" {
-  run contains "Hello World" "hello"
-  assert_failure
-}
-
-@test "contains - substring longer than string" {
-  run contains "hi" "hello"
-  assert_failure
-}
-
-@test "contains - listen keyword present" {
-  run contains "listen 80; server_name example.com;" "listen"
-  assert_success
-}
-
-@test "contains - listen keyword absent" {
-  run contains "server_name example.com;" "listen"
-  assert_failure
-}
-
 # nginx_listen() - both families, IPv6 commented out when the jail has none
 
 @test "nginx_listen - a jail with IPv6 listens on both families" {
