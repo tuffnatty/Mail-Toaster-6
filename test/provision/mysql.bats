@@ -59,7 +59,7 @@ setup() {
   export STAGE_MNT; STAGE_MNT=$(mktemp -d)
   cp -r "$BATS_FILE_TMPDIR/stage/." "$STAGE_MNT/"
 
-  provision_fns mysql
+  provision_fns mysql tell_settings
 }
 
 teardown() {
@@ -173,7 +173,7 @@ EOF
 # --- start_mysql behavior ---
 
 @test "mysql - start calls service mysql-server start" {
-  stage_exec()  { echo "EXEC:$*"; }
+  echo_stage_exec()  { echo "EXEC:$*"; }
   configure_mysql_root_password() { :; }
   configure_mysql_keys() { :; }
   run start_mysql
@@ -226,7 +226,7 @@ EOF
 
 @test "mysql - test checks port 3306" {
   stage_listening() { echo "PORT:$*"; }
-  stage_exec() { :; }
+  echo_stage_exec() { :; }
   run test_mysql
   assert_success
   assert_output --partial "PORT:3306"
