@@ -35,6 +35,7 @@ mt6_defaults()
 	export TOASTER_MYSQL=${TOASTER_MYSQL:-"1"}
 	export TOASTER_MARIADB=${TOASTER_MARIADB:-"0"}
 	export TOASTER_NGINX_ACME=${TOASTER_NGINX_ACME:-"0"}
+	export TOASTER_NGINX_LOG_FORMAT=${TOASTER_NGINX_LOG_FORMAT:-"combined"}
 	export TOASTER_NTP=${TOASTER_NTP:-"chrony"}
 	export TOASTER_MSA=${TOASTER_MSA:-"haraka"}
 	export TOASTER_MTA=${TOASTER_MTA:-"haraka"}
@@ -45,6 +46,7 @@ mt6_defaults()
 	export TOASTER_VPOPMAIL_EXT=${TOASTER_VPOPMAIL_EXT:-"0"}
 	export TOASTER_QMHANDLE=${TOASTER_QMHANDLE:-"0"}
 	export TOASTER_WEBMAIL_PROXY=${TOASTER_WEBMAIL_PROXY:-"haproxy"}
+	export NEWSYSLOG_COMPRESSION_METHOD=${NEWSYSLOG_COMPRESSION_METHOD:-"legacy"}
 
 	# If your hosts public facing IP(s) are not bound to a local interface, configure it here.
 	export PUBLIC_IP4=${PUBLIC_IP4:-""}
@@ -122,6 +124,7 @@ export TOASTER_MTA="haraka"
 export TOASTER_MYSQL="1"
 export TOASTER_MYSQL_PASS=""
 export TOASTER_NGINX_ACME="0"
+export TOASTER_NGINX_LOG_FORMAT=""  # set to "main" to see X-Forwarded-For addresses
 export TOASTER_NRPE=""
 export TOASTER_NTP=""
 export TOASTER_BASE_METHOD="$(default_base_method)"  # fetch | bsdinstall | pkgbase
@@ -133,6 +136,7 @@ export TOASTER_USE_TMPFS="0"
 export TOASTER_VPOPMAIL_CLEAR="1"
 export TOASTER_VPOPMAIL_EXT="0"
 export TOASTER_WEBMAIL_PROXY="haproxy"
+export NEWSYSLOG_COMPRESSION_METHOD="legacy"  # set to "none" on FreeBSD 15+ to disable log compression
 
 EO_MT_CONF
 
