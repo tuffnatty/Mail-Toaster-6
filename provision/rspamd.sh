@@ -16,6 +16,7 @@ RSPAMD_ETC="$STAGE_MNT/usr/local/etc/rspamd"
 install_rspamd()
 {
 	tell_status "installing rspamd"
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || [ "$(freebsd_major "$STAGE_MNT")" -ge 15 ] || stage_pkg_install FreeBSD-elftoolchain
 	stage_pkg_install rspamd
 
 	if [ "$TOASTER_USE_TMPFS" = 1 ]; then
@@ -75,7 +76,7 @@ configure_dmarc()
 
 	actions = {
 		quarantine = "add_header";
-		reject = "reject";
+		reject = "add_header";
 	}
 	send_reports = true;
 	# Enables storing reporting information to redis
@@ -244,15 +245,34 @@ EO_MD
 
 configure_worker()
 {
-	store_config "$RSPAMD_ETC/local.d/worker-normal.inc" <<EO_WORKER
+	if [ "$TOASTER_MTA" = postfix ]; then
+		store_config "$RSPAMD_ETC/local.d/worker-proxy.inc" <<EO_PROXY
+upstream "local" {
+  self_scan = yes; # Enable self-scan
+}
+bind_socket = *:11332;
+EO_PROXY
+		store_config "$RSPAMD_ETC/local.d/worker-normal.inc" <<EO_WORKER
+enabled = false;
+EO_WORKER
+	else
+		store_config "$RSPAMD_ETC/local.d/worker-proxy.inc" <<EO_PROXY
+enabled = false;
+EO_PROXY
+		store_config "$RSPAMD_ETC/local.d/worker-normal.inc" <<EO_WORKER
 	bind_socket = "*:11333";
 	count = 4;
 EO_WORKER
+	fi
 }
 
 configure_controller()
 {
-	_pass=$(jexec vpopmail /usr/local/vpopmail/bin/vuserinfo -C "postmaster@${TOASTER_MAIL_DOMAIN}")
+	local _pass
+	case "$TOASTER_VIRTUAL_DOMAIN_MANAGER" in
+		vpopmail) _pass=$(jexec vpopmail /usr/local/vpopmail/bin/vuserinfo -C "postmaster@${TOASTER_MAIL_DOMAIN}") ;;
+		postfixadmin) _pass="$TOASTER_ADMIN_PASS" ;;
+	esac
 
 	store_config "$RSPAMD_ETC/local.d/worker-controller.inc" <<EO_CONTROLLER
 password = "$(jexec stage rspamadm pw -p "$_pass")";
@@ -261,12 +281,20 @@ secure_ip = $(get_jail_ip6 dovecot);
 EO_CONTROLLER
 }
 
+configure_actions()
+{
+	store_config "$RSPAMD_ETC/local.d/actions.conf" <<EO_ACTIONS
+reject = 1000;
+EO_ACTIONS
+}
+
 configure_rspamd()
 {
 	tell_status "configuring rspamd"
 
 	for _d in "local.d" "override.d"; do
 		if [ ! -d "$RSPAMD_ETC/${_d}" ]; then
+			echo_do \
 			mkdir "$RSPAMD_ETC/${_d}"
 		fi
 	done
@@ -285,6 +313,7 @@ configure_rspamd()
 	configure_metadefender
 	configure_worker
 	configure_controller
+	configure_actions
 
 	echo "done"
 }

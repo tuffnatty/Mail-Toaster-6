@@ -21,6 +21,8 @@ bind 127.0.0.1
 protected-mode yes
 EOF
 
+  pkg() { :; }
+
   provision_run redis
 }
 
@@ -59,6 +61,7 @@ setup() {
 
 @test "redis - install uses redis package" {
   provision_fns redis
+  pkg() { :; }
   stage_pkg_install() { echo "PKG:$*"; }
   run install_redis
   assert_success

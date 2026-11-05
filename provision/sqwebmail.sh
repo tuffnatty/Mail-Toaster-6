@@ -76,7 +76,7 @@ alias.url += (
     cgi.assign = ( "" => "" )
 }
 extforward.forwarder = (
-    "$(get_jail_ip4 haproxy)"  => "trust",
+    "$(get_jail_ip4 "$TOASTER_INGRESS_JAIL")"  => "trust",
 )
 EO_LIGHTTPD
 
