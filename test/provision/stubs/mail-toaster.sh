@@ -5,6 +5,7 @@
 export MT6_TEST_ENV=1
 
 export JAIL_NET_PREFIX=${JAIL_NET_PREFIX:-"172.16.15"}
+export JAIL_NET_MASK=${JAIL_NET_MASK:-"/19"}
 export JAIL_ORDERED_LIST=${JAIL_ORDERED_LIST:-"syslog base dns mysql clamav spamassassin foundationdb vpopmail haraka webmail munin haproxy rspamd stalwart dovecot redis geoip nginx mailtest apache postgres minecraft joomla php7 memcached sphinxsearch elasticsearch nictool sqwebmail dhcp letsencrypt tinydns roundcube squirrelmail rainloop rsnapshot mediawiki smf wordpress whmcs squirrelcart horde grafana unifi mongodb gitlab gitlab_runner dcc prometheus influxdb telegraf statsd mail_dmarc ghost jekyll borg nagios postfix puppeteer snappymail knot nsd bsd_cache wildduck zonemta centos ubuntu bhyve-ubuntu mailman git tachyon"}
 export ZFS_VOL=${ZFS_VOL:-"zroot"}
 _stub_root="${BATS_FILE_TMPDIR:-/nonexistent}"
@@ -45,6 +46,7 @@ err_exit()       { echo "ERR: $*" >&2; }
 proclaim_success() { :; }
 tell_settings()  { :; }
 service_config() { :; }
+echo_do()        { echo "$@" >&2; "$@"; }
 
 # Versioning
 mt6_version()    { echo "20260403"; }
@@ -135,6 +137,7 @@ stage_fbsd_pkgbase()       { :; }
 stage_pkg_install()        { :; }
 stage_port_install()       { :; }
 stage_exec()               { :; }
+echo_stage_exec()          { :; }
 stage_sysrc()              { :; }
 stage_make_conf()          { :; }
 stage_listening()          { :; }

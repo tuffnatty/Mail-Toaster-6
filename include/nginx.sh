@@ -38,6 +38,7 @@ install_nginx()
 
 install_nginx_newsyslog()
 {
+	[ "${TOASTER_PKGBASE:-0}" = 0 ] || stage_pkg_install FreeBSD-newsyslog
 	stage_enable_newsyslog
 
 	tell_status "enabling nginx log file rotation"
@@ -66,13 +67,6 @@ nginx_listen()
 
 	printf '\t\tlisten       %s%s;\n\t\t%slisten  [::]:%s%s;\n' \
 		"$_port" "$_opts" "$_c6" "$_port" "$_opts"
-}
-
-contains() {
-	string="$1"
-	substring="$2"
-	if [ "${string#*"$substring"}" != "$string" ]; then return 0; fi
-	return 1
 }
 
 configure_nginx_server_d()
@@ -144,7 +138,9 @@ configure_nginx()
 	store_config "$_etcdir/nginx.conf" "update" <<EO_NGINX_CONF
 # load_module /usr/local/libexec/nginx/ngx_http_acme_module.so;
 load_module /usr/local/libexec/nginx/ngx_mail_module.so;
+$([ "$TOASTER_INGRESS_JAIL" != haproxy ] || echo '
 load_module /usr/local/libexec/nginx/ngx_stream_module.so;
+')
 
 worker_processes  1;
 
@@ -171,9 +167,9 @@ http {
 
 	keepalive_timeout  65;
 
-	set_real_ip_from $(get_jail_ip4 haproxy);
+	set_real_ip_from $(get_jail_ip4 "$TOASTER_INGRESS_JAIL");
 	set_real_ip_from $(get_jail_ip4 webmail);
-	set_real_ip_from $(get_jail_ip6 haproxy);
+	set_real_ip_from $(get_jail_ip6 "$TOASTER_INGRESS_JAIL");
 	set_real_ip_from $(get_jail_ip6 webmail);
 	real_ip_header   X-Forwarded-For;
 	real_ip_recursive on;
@@ -197,7 +193,7 @@ start_nginx()
 {
 	tell_status "starting nginx"
 	stage_sysrc nginx_enable=YES
-	stage_exec service nginx start || stage_exec service nginx restart
+	echo_stage_exec service nginx start || echo_stage_exec service nginx restart
 }
 
 test_nginx() {

@@ -7,6 +7,7 @@ export JAIL_CONF_EXTRA=""
 export JAIL_FSTAB=""
 
 mt6-include nginx
+mt6-include util
 
 configure_nginx_server()
 {
@@ -124,6 +125,7 @@ update_existing_jails()
 	done
 }
 
+export TOASTER_PKGBASE=0
 base_snapshot_exists || exit
 create_staged_fs bsd_cache
 start_staged_jail bsd_cache

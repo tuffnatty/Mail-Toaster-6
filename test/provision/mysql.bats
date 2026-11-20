@@ -59,7 +59,7 @@ setup() {
   export STAGE_MNT; STAGE_MNT=$(mktemp -d)
   cp -r "$BATS_FILE_TMPDIR/stage/." "$STAGE_MNT/"
 
-  provision_fns mysql
+  provision_fns mysql tell_settings
 }
 
 teardown() {
@@ -173,7 +173,7 @@ EOF
 # --- start_mysql behavior ---
 
 @test "mysql - start calls service mysql-server start" {
-  stage_exec()  { echo "EXEC:$*"; }
+  echo_stage_exec() { echo "EXEC:$*"; }
   configure_mysql_root_password() { :; }
   configure_mysql_keys() { :; }
   run start_mysql
@@ -186,7 +186,7 @@ EOF
   export ZFS_JAIL_MNT="$BATS_TEST_TMPDIR/jails"
   mkdir -p "$ZFS_JAIL_MNT/mysql/data/db/mysql"
   unmount_data() { echo "UNMOUNT:$*"; }
-  stage_exec()   { echo "EXEC:$*"; }
+  echo_stage_exec() { echo "EXEC:$*"; }
   configure_mysql_root_password() { :; }
   configure_mysql_keys() { :; }
 
@@ -199,7 +199,7 @@ EOF
 @test "mysql - start without a live mysql jail leaves the data mounted" {
   export ZFS_JAIL_MNT="$BATS_TEST_TMPDIR/jails"
   unmount_data() { echo "UNMOUNT:$*"; }
-  stage_exec()   { echo "EXEC:$*"; }
+  echo_stage_exec() { echo "EXEC:$*"; }
   configure_mysql_root_password() { :; }
   configure_mysql_keys() { :; }
 
@@ -212,7 +212,7 @@ EOF
 @test "mysql - start survives set -e on a host running a mysql jail" {
   export ZFS_JAIL_MNT="$BATS_TEST_TMPDIR/jails"
   mkdir -p "$ZFS_JAIL_MNT/mysql/data/db/mysql"
-  stage_exec() { echo "EXEC:$*"; }
+  echo_stage_exec() { echo "EXEC:$*"; }
   configure_mysql_root_password() { :; }
   configure_mysql_keys() { :; }
   start_under_errexit() { ( set -e; start_mysql ); }
@@ -226,7 +226,7 @@ EOF
 
 @test "mysql - test checks port 3306" {
   stage_listening() { echo "PORT:$*"; }
-  stage_exec() { :; }
+  echo_stage_exec() { :; }
   run test_mysql
   assert_success
   assert_output --partial "PORT:3306"

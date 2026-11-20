@@ -10,6 +10,7 @@ setup() {
 
   # Source the file under test
   load '../../include/zfs.sh'
+  load '../../include/util.sh'  # echo_do
 }
 
 # Mock tell_status
