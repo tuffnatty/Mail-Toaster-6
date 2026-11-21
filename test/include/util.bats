@@ -409,7 +409,7 @@ pkg_cache_root() {
   echo "$_root"
 }
 
-@test "pkg_use_bsd_cache - disables a FreeBSD.conf base.sh already wrote" {
+@test "pkg_use_bsd_cache - disables FreeBSD-ports repo in a FreeBSD.conf base.sh already wrote" {
   chroot() { echo "15.1-RELEASE"; }
   sed_inplace() { sed -i.bak "$@"; }
   local _root; _root=$(pkg_cache_root)
@@ -420,9 +420,23 @@ pkg_cache_root() {
   pkg_use_bsd_cache "$_root"
 
   run cat "$_root/usr/local/etc/pkg/repos/FreeBSD.conf"
-  assert_output --partial "FreeBSD-ports"
-  assert_output --partial "enabled: no"
+  assert_output --partial "FreeBSD-ports: { enabled: no }"
   refute_output --partial "pkg.FreeBSD.org"
+  assert_output --partial "FreeBSD-ports-kmods: { enabled: no }"
+}
+
+@test "pkg_use_bsd_cache - disables FreeBSD-ports-kmods repo in a FreeBSD.conf base.sh already wrote" {
+  chroot() { echo "15.1-RELEASE"; }
+  sed_inplace() { sed -i.bak "$@"; }
+  local _root; _root=$(pkg_cache_root)
+
+  echo 'FreeBSD-ports: { url: "pkg+http://pkg.FreeBSD.org/${ABI}/latest" }' \
+    > "$_root/usr/local/etc/pkg/repos/FreeBSD.conf"
+
+  pkg_use_bsd_cache "$_root"
+
+  run cat "$_root/usr/local/etc/pkg/repos/FreeBSD.conf"
+  assert_output --partial "FreeBSD-ports-kmods: { enabled: no }"
 }
 
 @test "pkg_use_bsd_cache - names the pre-15 repo FreeBSD" {
@@ -464,4 +478,29 @@ pkg_cache_root() {
 
   run cat "$_root/etc/freebsd-update.conf"
   assert_output "ServerName freebsd-update"
+}
+
+@test "configure_pkg_extra - updates MT6-extra.conf when TOASTER_PKG_EXTRA is set" {
+  local _root; _root=$(pkg_cache_root)
+  export TOASTER_PKG_EXTRA='my-repo { url: "http://example.com", priority: 10 }'
+
+  echo 'WHATEVER' > "$_root/usr/local/etc/pkg/repos/MT6-extra.conf"
+
+  configure_pkg_extra "$_root"
+
+  run cat "$_root/usr/local/etc/pkg/repos/MT6-extra.conf"
+  assert_output --partial "my-repo"
+  refute_output --partial "WHATEVER"
+}
+
+@test "configure_pkg_extra - clears MT6-extra.conf when TOASTER_PKG_EXTRA is empty" {
+  local _root; _root=$(pkg_cache_root)
+  export TOASTER_PKG_EXTRA=''
+
+  echo 'WHATEVER' > "$_root/usr/local/etc/pkg/repos/MT6-extra.conf"
+
+  configure_pkg_extra "$_root"
+
+  run test -f "$_root/usr/local/etc/pkg/repos/MT6-extra.conf"
+  assert_failure
 }
